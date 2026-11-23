@@ -991,8 +991,8 @@ function renderScreen(name) {
         : '이 앱을 쓰기 전에 다녀온 곳도 괜찮아요. ') +
       '한 줄 후기를 남기거나, 분위기 · 공간·시설 · 책·큐레이션에서 각각 ' + pickRule + '씩 골라 주세요.</p>' +
       '<form id="reviewForm" novalidate>' +
-      '<h3 class="section first">한 줄 후기 <small class="muted">(선택)</small></h3>' +
-      '<textarea class="inputarea" id="reviewComment" maxlength="80" placeholder="하고 싶은 말이 있다면 적어 주세요" aria-label="한 줄 후기 (선택)"></textarea><div class="counter" id="rcount">0/80</div>' +
+      '<h3 class="section first">한 줄 후기 <small class="muted">(필수)</small></h3>' +
+      '<textarea class="inputarea" id="reviewComment" maxlength="80" placeholder="하고 싶은 말이 있다면 적어 주세요" aria-label="한 줄 후기 (필수)"></textarea><div class="counter" id="rcount">0/80</div>' +
       REVIEW_GROUPS.map((g, i) =>
         '<div id="rgroup' + i + '">' +
         '<h3 class="section section-row"><span>' + esc(g.label) + ' <small class="muted">(필수 · ' + pickRule + ')</small></span>' +
