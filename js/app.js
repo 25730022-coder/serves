@@ -136,7 +136,7 @@
 
   const TITLES = {
     auth: '로그인 / 회원가입', home: '책방틈', list: '책방 탐색', detail: '책방 상세', reviews: '후기 작성',
-    my: '나의 책방', course: '코스', 'course-setup': '코스 만들기', map: '지도·코스 결과', edit: '코스 편집',
+    my: '마이페이지', course: '코스', 'course-setup': '코스 만들기', map: '지도·코스 결과', edit: '코스 편집',
     taste: '나의 취향', 'done-course': '저장 완료', signup: '프로필 설정', profile: '내 정보 설정'
   };
   const NAV_OF = {
@@ -160,8 +160,7 @@
     /* 시설은 사용자에게 하나의 필터로 보여주되, 데이터 출처에 따라 내부적으로 각각 집계합니다. */
     { key: 'facility', label: '시설', get: (s) => facilityValues(s) }
   ];
-  /* 후기 체크리스트: 눌러서 고르기만 하면 되고, 항목 이름이 그대로 키워드로 저장돼요.
-     세 분류 모두 REVIEW_PICK_MIN~REVIEW_PICK_MAX개씩 골라야 후기를 등록할 수 있어요 */
+  /* 후기 체크리스트: 눌러서 고르기만 하면 되고, 항목 이름이 그대로 키워드로 저장돼요. */
   const REVIEW_PICK_MIN = 1, REVIEW_PICK_MAX = 3;
   const REVIEW_GROUPS = [
     { label: '분위기', options: ['조용함', '아늑함', '활기참', '감성적', '깔끔함'] },
@@ -191,7 +190,8 @@
   const COURSE_WALK_OPTS = [10, 20, 30];
   const COURSE_READ_OPTS = [30, 60, 120];
   function blankCourse(storeId) {
-    return { id: null, title: '', storeId, includeWalk: true, walkMinutes: 20, readingMinutes: 60, order: [], visibility: 'private' };
+    const ids = Array.isArray(storeId) ? storeId.filter(Boolean) : (storeId ? [storeId] : []);
+    return { id: null, title: '', storeId: ids[0] || null, storeIds: ids, includeWalk: true, walkMinutes: 20, readingMinutes: 60, order: [], visibility: 'private' };
   }
   const COURSE_TITLE_MAX = 40;
   /* 코스 이름을 비워 두면 '책방 이름 중심 산책 코스'처럼 자동으로 정해요 */
@@ -371,6 +371,7 @@
     if (opts.reset) hist = [];
     else if (opts.push !== false && current && current !== name) hist.push(current);
     current = name;
+    if (name !== 'home') stopHomePickAutoSwipe();
     $$('.screen').forEach((el) => { el.hidden = el.dataset.screen !== name; });
     $('#pageTitle').textContent = '책방틈'; /* 로고 옆 제목은 화면이 바뀌어도 '책방틈'으로 고정 */
     $$('.bottom button').forEach((b) => b.classList.toggle('on', b.dataset.nav === NAV_OF[name]));
@@ -418,11 +419,9 @@
       go('course-setup');
     } else {
       if (name === 'list') {
-        /* 책방 탐색 진입 시 조건 초기화 — 로그인했다면 내 위치·취향으로 미리 채움 */
+        /* 책방 탐색 진입 시 전체 조건으로 표시하고 선택 조건 영역은 기본으로 닫아 둠 */
         state.query = ''; state.visible = PAGE; state.preset = null; state.presetPending = false;
-        if (!me()) state.applied = [];
-        else if (state.status === 'ready') applyPreset();
-        else { state.applied = []; state.presetPending = true; }
+        state.applied = [];
       }
       go(name, { reset: true });
     }
@@ -563,14 +562,10 @@
     const chips = [];
     if (state.query.trim()) chips.push('<span class="chip">“' + esc(state.query.trim()) + '” <button type="button" class="x" data-action="clearQuery" aria-label="검색어 지우기">×</button></span>');
     state.applied.forEach((a, i) => { const lab = a.key === 'region' ? regionLabel(a.value) : a.value; chips.push('<span class="chip">' + esc(lab) + ' <button type="button" class="x" data-action="removeFilter" data-i="' + i + '" aria-label="' + esc(lab) + ' 해제">×</button></span>'); });
-    const presetOn = state.preset && (state.preset.filters.length || state.preset.note) && !state.query.trim() && sameFilters(state.applied, state.preset.filters);
-    const presetNote = presetOn
-      ? '<span class="muted preset-note">' + (state.preset.filters.length ? '내 위치·취향이 미리 적용돼 있어요. ' : '') + esc(state.preset.note) + '</span>'
-      : '';
-    sel.hidden = false;
-    sel.innerHTML = (chips.length
+    sel.hidden = !chips.length;
+    sel.innerHTML = chips.length
       ? '<span>선택 조건:</span>' + chips.join('') + '<button type="button" class="reset" data-action="resetAll">초기화</button>'
-      : '<span class="muted">선택된 조건이 없어요. 필터를 눌러 조건을 추가해 보세요.</span>') + presetNote;
+      : '';
 
     if (state.status !== 'ready') {
       $('#resultMeta').textContent = '검색 결과';
@@ -658,7 +653,7 @@
       return '<span class="chip' + (KW_CLASS[gi] ? ' ' + KW_CLASS[gi] : '') + '"' + (gi >= 0 ? ' title="' + esc(REVIEW_GROUPS[gi].label) + '"' : '') + '>' + esc(t) + '</span>';
     }).join('') + '</div>' : '';
   }
-  /* 줄글(한 줄) 후기만 모아요 — 최신순. 내 후기는 이 책방에 몇 번째로 남겼는지(visit)를 함께 가져요 */
+  /* 한 줄 후기만 모아요 — 최신순. 내 후기는 이 책방에 몇 번째로 남겼는지(visit)를 함께 가져요 */
   function commentsOf(id) {
     const s = getStore(id);
     const mine = db.get(KEY.reviews, []).filter((r) => r.bookstoreId === id)
@@ -767,8 +762,8 @@
     const fav = isFav(s.id);
     const chipTags = uniq(s.categories.concat(s.themes.slice(0, 1), reviewMoodValues(s.id), reviewFacilityValues(s.id)));
     const cn = commentsOf(s.id).length;
-    /* 코스 화면의 '전체 코스 / 저장한 코스'처럼, 이름·분류 아래에서 '책방 정보'와 '줄글 후기만' 중에 골라 봐요 */
-    const dtabs = [['info', '책방 정보'], ['comments', cn ? '줄글 후기 ' + cn : '줄글 후기']];
+    /* 코스 화면의 '전체 코스 / 저장한 코스'처럼, 이름·분류 아래에서 '책방 정보'와 '후기' 중에 골라 봐요 */
+    const dtabs = [['info', '책방 정보'], ['comments', cn ? '후기 ' + cn : '후기']];
     const onComments = state.dtab === 'comments';
     /* 위쪽 내용(.detail-main)과 하단 버튼(.sticky)을 나눠서, 탭 내용이 짧아도 버튼은 항상 화면 맨 아래(하단 메뉴 바로 위)에 놓여요 */
     box.innerHTML = '<div class="detail-main">' +
@@ -796,7 +791,7 @@
         ? '<div class="detail-map-slot" id="detailMap" role="region" aria-label="책방 위치 지도"><span>지도를 불러오는 중이에요</span></div>'
         : '<div class="detail-map-slot" role="region" aria-label="책방 위치 지도"><span>지도를 표시할 수 없어요</span><small>이 책방은 위치 좌표 정보가 없어요</small></div>');
   }
-  /* '줄글 후기' 탭: 한 줄 후기만 최신순으로 */
+  /* '후기' 탭: 한 줄 후기 먼저 표시하고 선택 옵션을 아래에 함께 보여줘요 */
   function detailCommentsHTML(s) {
     const list = commentsOf(s.id);
     return list.length
@@ -804,8 +799,10 @@
         '<div class="card"><b>' + esc(r.nickname || '익명') + '</b>' +
         (r.visit >= 2 ? '<span class="badge on">' + visitLabel(r.visit) + '</span>' : '') +
         (r.date ? ' <small class="muted">' + esc(r.date) + ' 작성</small>' : '') +
-        '<p class="para">“' + esc(r.comment.trim()) + '”</p></div>').join('')
-      : '<div class="state"><div class="icon">✎</div><h3>아직 줄글 후기가 없어요</h3><p>후기를 쓸 때 한 줄 후기를 남기면<br>여기에 모여요.</p></div>';
+        '<p class="para">“' + esc(r.comment.trim()) + '”</p>' +
+        (Array.isArray(r.tags) && r.tags.length ? '<div class="chips mini">' + r.tags.map((t) => '<span class="chip">' + esc(t) + '</span>').join('') + '</div>' : '') +
+        '</div>').join('')
+      : '<div class="state"><div class="icon">✎</div><h3>아직 후기가 없어요</h3><p>후기를 쓸 때 한 줄 후기를 남기면<br>여기에 모여요.</p></div>';
   }
   /* 즐겨찾기: 화면을 넘기지 않고 그 자리에서 바꾸고, 토스트로 다음 행동/되돌리기를 제공 */
   function setFav(id, on) {
@@ -828,7 +825,7 @@
     setFav(id, !was);
     refreshFav(id);
     if (was) toast('즐겨찾기에서 해제했어요.', { label: '실행 취소', action: 'undoFav', id: id });
-    else toast('즐겨찾기에 저장했어요.', { label: '나의 책방 보기', action: 'goMyFav' });
+    else toast('즐겨찾기에 저장했어요.', { label: '마이페이지 보기', action: 'goMyFav' });
   }
   function copyText(text) {
     const done = () => toast('복사했어요.');
@@ -844,6 +841,28 @@
 
   /* ---------- 홈 ---------- */
   let homePicks = [];
+  let homePickTimer = null;
+  let homePickPaused = false;
+  function stopHomePickAutoSwipe() {
+    if (homePickTimer) { clearInterval(homePickTimer); homePickTimer = null; }
+  }
+  function startHomePickAutoSwipe() {
+    stopHomePickAutoSwipe();
+    if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    homePickTimer = setInterval(() => {
+      if (current !== 'home' || homePickPaused) return;
+      const rail = $('.home-pick-grid');
+      if (!rail || rail.scrollWidth <= rail.clientWidth) return;
+      const max = rail.scrollWidth - rail.clientWidth;
+      if (rail.scrollLeft >= max - 4) {
+        rail.scrollTo({ left: 0, behavior: 'smooth' });
+      } else {
+        const firstCard = rail.querySelector('.home-pick-card');
+        const step = firstCard ? firstCard.offsetWidth + 10 : Math.floor(rail.clientWidth / 2);
+        rail.scrollTo({ left: Math.min(max, rail.scrollLeft + step), behavior: 'smooth' });
+      }
+    }, 3000);
+  }
   function pickHomeStores() {
     const pool = state.stores.slice();
     for (let i = pool.length - 1; i > 0; i--) {
@@ -914,6 +933,17 @@
       '<section class="home-block"><div class="home-heading"><h3>오늘은 이런 책방 어때요?</h3></div>' +
       '<div class="home-pick-grid" aria-label="추천 책방 6곳, 좌우로 밀어보세요">' + picks.map(homePickCard).join('') + '</div></section>' +
       homeNewsHTML();
+    const rail = $('.home-pick-grid');
+    if (rail) {
+      rail.addEventListener('pointerdown', () => { homePickPaused = true; });
+      rail.addEventListener('pointerup', () => { homePickPaused = false; });
+      rail.addEventListener('pointercancel', () => { homePickPaused = false; });
+      rail.addEventListener('mouseenter', () => { homePickPaused = true; });
+      rail.addEventListener('mouseleave', () => { homePickPaused = false; });
+      rail.addEventListener('focusin', () => { homePickPaused = true; });
+      rail.addEventListener('focusout', () => { homePickPaused = false; });
+    }
+    startHomePickAutoSwipe();
     /* 인기 코스 3개 (전체 코스 '인기순'과 같은 기준) — 로그인 여부와 상관없이 표시, 누르면 코스 정보 화면으로 */
     let h = '';
     const likedIds = db.get(KEY.likes, []);
@@ -926,7 +956,8 @@
         topCourses.map((x) => '<div class="card home-course course-with-thumb" data-action="openCourse" data-id="' + x.id + '" data-mode="map">' +
           courseThumbHTML(x) + '<div class="course-card-content">' +
           '<div class="home-course-top">' + courseTitleHTML(x) + '<span class="home-course-likes" aria-label="좋아요 ' + likeCnt(x) + '개">♥ ' + likeCnt(x) + '</span></div>' +
-          '<p class="para">' + esc(x.author) + '님 · ' + courseMeta(x) + '<br>' + esc(routeText(x)) + '</p></div></div>').join('') + '</section>';
+          '<p class="para home-course-meta">' + esc(x.author) + '님 · ' + courseMeta(x) + '</p>' +
+          '<p class="para home-course-route">' + esc(routeText(x)) + '</p></div></div>').join('') + '</section>';
     }
     box.innerHTML = h;
   }
@@ -938,23 +969,22 @@
     const s = getStore(state.reviewStoreId);
     if (!s) return;
     const ctx = state.reviewCtx;
-    const pickRule = REVIEW_PICK_MIN + '~' + REVIEW_PICK_MAX + '개';
     box.innerHTML =
       '<h3>' + esc(s.title) + '</h3>' +
       '<p class="para">' + (ctx
         ? '“' + esc(ctx.title) + '” 코스는 어떠셨나요? '
         : '이 앱을 쓰기 전에 다녀온 곳도 괜찮아요. ') +
-      '분위기 · 공간·시설 · 책·큐레이션에서 각각 ' + pickRule + '씩 골라 주세요. 한 줄 후기는 쓰지 않아도 괜찮아요.</p>' +
+      '한 줄 후기를 먼저 남기고, 아래 분위기 · 공간·시설 · 책·큐레이션 옵션을 자유롭게 골라 주세요.</p>' +
       '<form id="reviewForm" novalidate>' +
+      '<h3 class="section first">한 줄 후기</h3>' +
+      '<textarea class="inputarea" id="reviewComment" maxlength="80" placeholder="하고 싶은 말이 있다면 적어 주세요" aria-label="한 줄 후기"></textarea><div class="counter" id="rcount">0/80</div>' +
       REVIEW_GROUPS.map((g, i) =>
         '<div id="rgroup' + i + '">' +
-        '<h3 class="section section-row' + (i ? '' : ' first') + '"><span>' + esc(g.label) + ' <small class="muted">(필수 · ' + pickRule + ')</small></span>' +
+        '<h3 class="section section-row"><span>' + esc(g.label) + ' <small class="muted">(선택 · 최대 ' + REVIEW_PICK_MAX + '개)</small></span>' +
         '<small class="rcount" id="rcnt' + i + '" aria-live="polite">0/' + REVIEW_PICK_MAX + '</small></h3>' +
         '<div class="chips" role="group" aria-label="' + esc(g.label) + '">' +
         g.options.map((o) => '<label class="chk"><input type="checkbox" name="rtag" value="' + esc(o) + '"><span>' + esc(o) + '</span></label>').join('') +
-        '</div><p class="field-err" id="rerr' + i + '" role="alert" hidden></p></div>').join('') +
-      '<h3 class="section">한 줄 후기 <small class="muted">(선택)</small></h3>' +
-      '<textarea class="inputarea" id="reviewComment" maxlength="80" placeholder="하고 싶은 말이 있다면 적어 주세요" aria-label="한 줄 후기 (선택)"></textarea><div class="counter" id="rcount">0/80</div>' +
+        '</div></div>').join('') +
       '<div class="sticky"><button type="submit" class="btn">후기 등록</button></div></form>';
     $('[data-screen="reviews"]').classList.add('has-sticky');
     syncReviewGroups();
@@ -964,7 +994,7 @@
     const picked = $$('input[name="rtag"]:checked').map((i) => i.value);
     return REVIEW_GROUPS.map((g) => picked.filter((t) => g.options.includes(t)).length);
   }
-  /* 선택 개수를 분류 옆에 보여주고, 최대 개수에 닿으면 그 분류의 나머지 항목은 잠가요. 1개 이상 골랐다면 안내 문구는 걷어요 */
+  /* 선택 개수를 분류 옆에 보여주고, 최대 개수에 닿으면 그 분류의 나머지 항목은 잠가요 */
   function syncReviewGroups() {
     const counts = reviewGroupCounts();
     REVIEW_GROUPS.forEach((g, i) => {
@@ -974,25 +1004,15 @@
       $$('input[name="rtag"]', box).forEach((inp) => { inp.disabled = full && !inp.checked; });
       const c = $('#rcnt' + i);
       c.textContent = counts[i] + '/' + REVIEW_PICK_MAX;
-      c.classList.toggle('ok', counts[i] >= REVIEW_PICK_MIN);
-      if (counts[i] >= REVIEW_PICK_MIN) { c.classList.remove('err'); $('#rerr' + i).hidden = true; }
+      c.classList.toggle('ok', counts[i] > 0);
     });
   }
   function submitReview() {
     const tags = $$('input[name="rtag"]:checked').map((i) => i.value);
     const comment = $('#reviewComment').value.trim();
-    /* 세 분류 모두 1~3개를 골라야 등록할 수 있어요 — 부족한 분류를 표시하고 첫 번째 분류로 스크롤 */
-    const counts = reviewGroupCounts();
-    const bad = REVIEW_GROUPS.map((g, i) => i).filter((i) => counts[i] < REVIEW_PICK_MIN || counts[i] > REVIEW_PICK_MAX);
-    if (bad.length) {
-      bad.forEach((i) => {
-        $('#rcnt' + i).classList.add('err');
-        const e = $('#rerr' + i);
-        e.textContent = REVIEW_GROUPS[i].label + '에서 ' + REVIEW_PICK_MIN + '~' + REVIEW_PICK_MAX + '개를 골라 주세요.';
-        e.hidden = false;
-      });
-      toast(bad.map((i) => REVIEW_GROUPS[i].label).join(', ') + '에서 ' + REVIEW_PICK_MIN + '~' + REVIEW_PICK_MAX + '개씩 골라 주세요.');
-      $('#rgroup' + bad[0]).scrollIntoView({ block: 'center' });
+    if (!comment && !tags.length) {
+      toast('한 줄 후기를 입력하거나 옵션을 선택해 주세요.');
+      $('#reviewComment').focus();
       return;
     }
     if (!requireMember()) return;
@@ -1008,11 +1028,11 @@
     back();
   }
 
-  /* ---------- 나의 책방 ---------- */
+  /* ---------- 마이페이지 ---------- */
   function renderMy() {
     const myTabs = $('[data-screen="my"] .tabs');
     myTabs.hidden = !signedIn();
-    if (!signedIn()) { $('#myBody').innerHTML = '<div class="state"><h3>나의 책방</h3><p>로그인하거나 회원가입해 주세요.</p><button type="button" class="btn" data-action="openAuth">로그인 / 회원가입</button></div>'; return; }
+    if (!signedIn()) { $('#myBody').innerHTML = '<div class="state"><h3>마이페이지</h3><p>로그인하거나 회원가입해 주세요.</p><button type="button" class="btn" data-action="openAuth">로그인 / 회원가입</button></div>'; return; }
     const labels = { fav: '즐겨찾기', reviews: '내 후기', courses: '저장 코스' };
     const counts = { fav: db.get(KEY.fav, []).length, reviews: db.get(KEY.reviews, []).length, courses: db.get(KEY.courses, []).length };
     $$('[data-screen="my"] .tabs button').forEach((b) => {
@@ -1078,22 +1098,35 @@
   }
   /* 코스 제목: 누르면 코스 정보(지도·요약)가 열려요 */
   function courseTitleHTML(x) {
-    return '<button type="button" class="card-title" data-action="openCourse" data-id="' + x.id + '" data-mode="map">' + esc(x.title) + ' <span aria-hidden="true">〉</span></button>';
+    const t = String(x.title || '').trim();
+    const sp = t.lastIndexOf(' ');
+    const cut = sp >= 0 ? sp + 1 : Math.max(0, t.length - 2);
+    const head = esc(t.slice(0, cut));
+    const tail = esc(t.slice(cut));
+    return '<button type="button" class="card-title" data-action="openCourse" data-id="' + x.id + '" data-mode="map">' + head + '<span class="title-tail">' + tail + ' <span aria-hidden="true">〉</span></span></button>';
   }
-  /* 저장한 코스 카드 (코스 허브·나의 책방 공용) */
+  /* 저장한 코스 카드 (코스 허브·마이페이지 공용) */
   function courseCardHTML(x) {
-    const badge = x.from
-      ? '<span class="badge">' + esc(x.from) + '님의 코스</span>'
-      : '<span class="badge' + (x.visibility === 'public' ? ' on' : '') + '">' + (x.visibility === 'public' ? '공개' : '비공개') + '</span>';
+    const isPub = x.visibility === 'public';
+    const fromBadge = x.from ? '<span class="badge">' + esc(x.from) + '님의 코스</span>' : '';
     const reviewBtn = !getStore(x.bookstoreId) ? ''
       : hasReview(x.bookstoreId)
         ? '<button type="button" class="btn light sm" disabled>후기 작성 ✓</button>'
         : '<button type="button" class="btn sm" data-action="reviewFor" data-id="' + x.bookstoreId + '" data-course="' + x.id + '">후기 쓰기</button>';
-    return '<div class="card course-with-thumb">' + courseThumbHTML(x) + '<div class="course-card-content">' + courseTitleHTML(x) + badge +
+    const iconBtns =
+      '<div class="course-card-icons">' +
+      '<button type="button" class="icon-act-btn" data-action="openCourse" data-id="' + x.id + '" data-mode="edit" aria-label="편집" title="편집"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></button>' +
+      '<button type="button" class="icon-act-btn danger" data-action="delCourse" data-id="' + x.id + '" aria-label="삭제" title="삭제"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/></svg></button>' +
+      '</div>';
+    const visToggle = x.srcId ? '' :
+      '<button type="button" class="vis-toggle' + (isPub ? ' is-on' : '') + '" role="switch" aria-checked="' + isPub + '" data-action="toggleVis" data-id="' + x.id + '">' +
+      '<span class="vis-toggle-track" aria-hidden="true"><span class="vis-toggle-thumb"></span></span>' +
+      '<span class="vis-toggle-label">' + (isPub ? '공개' : '비공개') + '</span></button>';
+    return '<div class="card course-with-thumb">' + courseThumbHTML(x) + '<div class="course-card-content">' +
+      '<div class="course-card-head"><div class="course-card-title-wrap">' + courseTitleHTML(x) + fromBadge + '</div>' + iconBtns + '</div>' +
       '<p class="para">' + courseMeta(x) + '<br>' + esc(routeText(x)) + '<br><span class="muted">' + esc(x.createdAt) + ' 저장</span></p>' +
-      '<div class="card-acts">' + reviewBtn + '<button type="button" class="btn light sm" data-action="openCourse" data-id="' + x.id + '" data-mode="edit">편집</button>' +
-      (x.srcId ? '' : '<button type="button" class="btn light sm" data-action="toggleVis" data-id="' + x.id + '">' + (x.visibility === 'public' ? '비공개로 전환' : '공개로 전환') + '</button>') +
-      '<button type="button" class="btn light sm" data-action="delCourse" data-id="' + x.id + '">삭제</button></div></div></div>';
+      (reviewBtn || visToggle ? '<div class="card-acts">' + reviewBtn + visToggle + '</div>' : '') +
+      '</div></div>';
   }
   /* 공개 범위 선택 (다른 사람의 코스를 담은 경우엔 표시하지 않음) */
   function visHTML(c) {
@@ -1261,14 +1294,24 @@
     const box = $('#setupBody');
     if (!needReady(box)) return;
     const c = state.course;
-    const s = getStore(c.storeId);
+    const ids = Array.isArray(c.storeIds) ? c.storeIds : (c.storeId ? [c.storeId] : []);
+    c.storeIds = ids;
+    c.storeId = ids[0] || null;
+    const stores = ids.map(getStore).filter(Boolean);
+    const allHaveCoords = stores.length > 0 && stores.every((x) => x.coordinates);
     const choice = (cur, val, label, action) => '<button type="button" class="' + (cur === val ? 'active' : '') + '" data-action="' + action + '" data-v="' + val + '">' + label + '</button>';
+    const pickedListHTML = stores.length
+      ? stores.map((st, i) =>
+        '<div class="route setup-store-item"><span class="name">' + (i + 1) + '. ' + esc(st.title) + '<br><small>' + esc(display(st.district, '지역 정보 없음')) + '</small></span>' +
+        '<span class="acts"><button type="button" data-action="removeSetupStore" data-id="' + esc(st.id) + '" aria-label="' + esc(st.title) + ' 제거">×</button></span></div>').join('') +
+        '<button type="button" class="pick" data-action="pickStore"><b>책방 추가 · 변경 (' + stores.length + '곳 선택됨)</b><span>책방 선택 〉</span></button>'
+      : '<button type="button" class="pick" data-action="pickStore"><b>책방을 선택해 주세요 (한꺼번에 선택 가능)</b><span>책방 선택 〉</span></button>';
     box.innerHTML =
       '<label class="section first" for="courseTitle">코스 이름 <small class="muted">(선택)</small></label>' +
       '<input type="text" class="fld" id="courseTitle" maxlength="' + COURSE_TITLE_MAX + '" value="' + esc(c.title || '') + '" placeholder="' + esc(defaultCourseTitle(c)) + '" aria-label="코스 이름" autocomplete="off">' +
       '<p class="para">비워 두면 “' + esc(defaultCourseTitle(c)) + '”처럼 자동으로 정해져요.</p>' +
       '<h3 class="section">선택한 책방</h3>' +
-      '<button type="button" class="pick" data-action="pickStore"><b>' + (s ? esc(s.title) : '책방을 선택해 주세요') + '</b><span>책방 변경 〉</span></button>' +
+      pickedListHTML +
       '<h3 class="section">산책을 포함할까요?</h3>' +
       '<div class="choices">' + choice(c.includeWalk, true, '포함', 'setWalkOn') + choice(c.includeWalk, false, '포함하지 않음', 'setWalkOn') + '</div>' +
       (c.includeWalk ? '<h3 class="section">산책 시간</h3><div class="choices">' + [10, 20, 30].map((m) => choice(c.walkMinutes, m, m + '분', 'setWalkMin')).join('') + '</div>' : '') +
@@ -1276,8 +1319,8 @@
       '<div class="choices">' + [[30, '30분'], [60, '1시간'], [120, '2시간']].map((x) => choice(c.readingMinutes, x[0], x[1], 'setReadMin')).join('') + '</div>' +
       visHTML(c) +
       '<h3 class="section">선택 조건 요약</h3>' +
-      '<p class="para">' + (s ? '책방 1곳' : '책방 미선택') + (c.includeWalk ? ' · 산책 ' + c.walkMinutes + '분' : ' · 산책 없음') + ' · 독서 ' + fmtMin(c.readingMinutes) + (c.srcId ? '' : ' · ' + (c.visibility === 'public' ? '공개' : '비공개')) + '</p>' +
-      '<div class="sticky"><button type="button" class="btn" data-action="makeCourse"' + (s && s.coordinates ? '' : ' disabled') + '>' + (s && s.coordinates ? '지도에서 코스 확인하기' : s ? '좌표 정보가 없어 코스를 만들 수 없어요' : '책방을 먼저 선택해 주세요') + '</button></div>';
+      '<p class="para">' + (stores.length ? '책방 ' + stores.length + '곳' : '책방 미선택') + (c.includeWalk ? ' · 산책 ' + c.walkMinutes + '분' : ' · 산책 없음') + ' · 독서 ' + fmtMin(c.readingMinutes) + (c.srcId ? '' : ' · ' + (c.visibility === 'public' ? '공개' : '비공개')) + '</p>' +
+      '<div class="sticky"><button type="button" class="btn" data-action="makeCourse"' + (allHaveCoords ? '' : ' disabled') + '>' + (allHaveCoords ? '지도에서 코스 확인하기' : stores.length ? '좌표 정보가 없어 코스를 만들 수 없어요' : '책방을 먼저 선택해 주세요') + '</button></div>';
     $('[data-screen="course-setup"]').classList.add('has-sticky');
   }
   const fmtMin = (m) => { m = Math.round(m); const h = Math.floor(m / 60), r = m % 60; return h ? (r ? h + '시간 ' + r + '분' : h + '시간') : r + '분'; };
@@ -1303,12 +1346,8 @@
   }
   function buildOrder() {
     const c = state.course;
-    const s = getStore(c.storeId);
-    const order = ['S:' + s.id];
-    if (c.includeWalk) { const w = nearest(s.coordinates, 'walk', order); if (w) order.push('P:' + w.id); }
-    const r = nearest(s.coordinates, 'rest', order);
-    if (r) order.push('P:' + r.id);
-    c.order = order;
+    const ids = (Array.isArray(c.storeIds) && c.storeIds.length) ? c.storeIds : (c.storeId ? [c.storeId] : []);
+    c.order = ids.filter((id) => getStore(id)).map((id) => 'S:' + id);
   }
   function courseStats() {
     const c = state.course;
@@ -1372,7 +1411,7 @@
       else courseMap.fitBounds(L.latLngBounds(latlngs), { padding: [32, 32], maxZoom: 16 });
     }).catch(() => { disposeCourseMap(); slot.classList.remove('is-live'); showError(); });
   }
-  /* 하단 저장 버튼: 코스 종류에 따라 달라져요 (맨 위가 주 버튼, 지도 화면에선 '코스 편집'이 저장 아래)
+  /* 하단 저장 버튼: 코스 종류에 따라 달라져요
      - 새 코스: 현재 코스 저장
      - 내가 만든 코스: 저장하기(덮어쓰기) · 새 코스로 저장하기
      - 공유 코스: 새 코스로 저장하기만 (원본은 그대로 두고 내 코스로 새로 만들어요) */
@@ -1383,7 +1422,6 @@
     if (k === 'shared') html = btn('saveAsNew', '새 코스로 저장하기');
     else if (k === 'own') html = '<div class="btn-row">' + btn('saveCourse', '저장하기') + btn('saveAsNew', '새 코스로 저장하기', true) + '</div>';
     else html = btn('saveCourse', withEdit ? '현재 코스 저장' : '코스 저장하기');
-    if (withEdit) html += btn('editCourse', '코스 편집', true);
     return '<div class="sticky">' + html + '</div>';
   }
   /* 전체 코스에서 다른 사람의 코스를 열어 볼 때: 코스 담기(다시 누르면 취소) · 후기 작성 */
@@ -1450,16 +1488,17 @@
     if (!c.order.length) buildOrder();
     const st = courseStats();
     const n = st.items.length;
+    const storeCount = st.items.filter((x) => x.isStore).length;
     box.innerHTML =
       '<h3 class="section first">장소 목록 · 순서 변경</h3>' +
       st.items.map((it, i) =>
-        '<div class="route"><span class="name">' + (i + 1) + '. ' + esc(it.name) + '<br><small>' + (it.isStore ? '기준 책방 · ' : '') + itemLabel(it, st) + '</small></span>' +
+        '<div class="route"><span class="name">' + (i + 1) + '. ' + esc(it.name) + '<br><small>' + (it.isStore && i === 0 ? '기준 책방 · ' : '') + itemLabel(it, st) + '</small></span>' +
         '<span class="acts"><button type="button" data-action="moveItem" data-i="' + i + '" data-d="-1" aria-label="위로"' + (i === 0 ? ' disabled' : '') + '>▲</button>' +
         '<button type="button" data-action="moveItem" data-i="' + i + '" data-d="1" aria-label="아래로"' + (i === n - 1 ? ' disabled' : '') + '>▼</button>' +
-        '<button type="button" data-action="removeItem" data-i="' + i + '" aria-label="삭제"' + (it.isStore ? ' disabled' : '') + '>×</button></span></div>').join('') +
+        '<button type="button" data-action="removeItem" data-i="' + i + '" aria-label="삭제"' + (it.isStore && storeCount <= 1 ? ' disabled' : '') + '>×</button></span></div>').join('') +
       '<button type="button" class="btn light" data-action="addPlace">＋ 주변 장소 추가</button>' +
       '<h3 class="section">수정된 코스 요약</h3>' +
-      '<p class="para">책방 1곳 · 산책 장소 ' + st.walkCount + '곳 · 기타 ' + (n - 1 - st.walkCount) + '곳<br>독서 ' + fmtMin(c.readingMinutes) + ' · 산책 ' + fmtMin(st.walkTotal) + '<br>도보 시간: ' + (st.moveMin ? '약 ' + fmtMin(st.moveMin) + ' (추정)' : '확인 필요') + '</p>' +
+      '<p class="para">책방 ' + storeCount + '곳 · 산책 장소 ' + st.walkCount + '곳 · 기타 ' + (n - storeCount - st.walkCount) + '곳<br>독서 ' + fmtMin(c.readingMinutes) + ' · 산책 ' + fmtMin(st.walkTotal) + '<br>도보 시간: ' + (st.moveMin ? '약 ' + fmtMin(st.moveMin) + ' (추정)' : '확인 필요') + '</p>' +
       visHTML(c) +
       saveButtonsHTML(c, false);
     $('[data-screen="edit"]').classList.add('has-sticky');
@@ -1540,9 +1579,15 @@
   }
   function pickStoreSheet() {
     const favIds = favorites();
+    const selIds = Array.isArray(state.course.storeIds) ? state.course.storeIds : (state.course.storeId ? [state.course.storeId] : []);
     const list = state.stores.slice().sort((a, b) => (favIds.includes(b.id) ? 1 : 0) - (favIds.includes(a.id) ? 1 : 0) || a.title.localeCompare(b.title, 'ko'));
-    openSheet('책방 선택', list.map((s) =>
-      '<button type="button" class="opt-btn" data-action="chooseStore" data-id="' + s.id + '"><span>' + (favIds.includes(s.id) ? '★ ' : '') + esc(s.title) + '</span><small>' + esc(s.district) + '</small></button>').join(''));
+    openSheet('책방 선택 (여러 곳 선택 가능)', list.map((s) =>
+      '<label class="opt"><input type="checkbox" name="cstore" value="' + esc(s.id) + '"' + (selIds.includes(s.id) ? ' checked' : '') + (s.coordinates ? '' : ' disabled') + '> ' +
+      '<span style="flex:1">' + (favIds.includes(s.id) ? '★ ' : '') + esc(s.title) + (s.coordinates ? '' : ' <small class="muted">(좌표 없음)</small>') + '</span>' +
+      '<small class="muted">' + esc(display(s.district, '')) + '</small></label>').join('') +
+      '<div class="sheet-foot"><div class="btn-row">' +
+      '<button type="button" class="btn light" data-action="clearStorePick">선택 해제</button>' +
+      '<button type="button" class="btn" data-action="chooseStore">선택 완료</button></div></div>');
   }
   function addPlaceSheet() {
     const c = state.course;
@@ -1848,7 +1893,7 @@
     loadMore() { state.visible += PAGE; renderList(); },
     openDetail(el) { closeSheet(); showDetail(el.dataset.id); },
     openReviews() { state.reviewStoreId = state.currentId; state.reviewCtx = null; go('reviews'); },
-    /* 책방 상세의 '책방 정보 / 줄글 후기' 탭 전환 — 다시 그린 뒤에도 키보드 포커스는 누른 탭에 둬요 */
+    /* 책방 상세의 '책방 정보 / 후기' 탭 전환 — 다시 그린 뒤에도 키보드 포커스는 누른 탭에 둬요 */
     detailTab(el) {
       state.dtab = el.dataset.tab === 'comments' ? 'comments' : 'info';
       renderDetail();
@@ -1977,8 +2022,10 @@
       const own = db.get(KEY.courses, []).find((c) => c.id === el.dataset.id);
       const x = own || state.shared.find((c) => c.id === el.dataset.id);
       if (!x) return;
+      const storeIds = x.order.filter((k) => k.startsWith('S:')).map((k) => k.slice(2));
+      if (!storeIds.length && x.bookstoreId) storeIds.push(x.bookstoreId);
       state.course = {
-        id: own ? x.id : null, title: x.title || '', storeId: x.bookstoreId, includeWalk: x.includeWalk, walkMinutes: x.walkMinutes,
+        id: own ? x.id : null, title: x.title || '', storeId: storeIds[0] || x.bookstoreId, storeIds: storeIds, includeWalk: x.includeWalk, walkMinutes: x.walkMinutes,
         readingMinutes: x.readingMinutes, order: x.order.slice(),
         visibility: own && x.visibility === 'public' ? 'public' : 'private',
         srcId: own ? x.srcId : x.id, from: own ? x.from : x.author,
@@ -1994,12 +2041,23 @@
       });
     },
     pickStore: pickStoreSheet,
-    chooseStore(el) {
-      /* 책방을 바꿔도 먼저 적어 둔 코스 이름은 유지 */
-      const title = state.course.title;
-      state.course = blankCourse(el.dataset.id);
-      state.course.title = title;
+    clearStorePick() {
+      $$('#sheetBody input[name="cstore"]').forEach((i) => { i.checked = false; });
+    },
+    chooseStore() {
+      const picked = $$('#sheetBody input[name="cstore"]:checked').map((i) => i.value);
+      state.course.storeIds = picked;
+      state.course.storeId = picked[0] || null;
+      state.course.order = [];
       closeSheet(); renderSetup();
+    },
+    removeSetupStore(el) {
+      const id = el.dataset.id;
+      const next = (state.course.storeIds || []).filter((x) => x !== id);
+      state.course.storeIds = next;
+      state.course.storeId = next[0] || null;
+      state.course.order = [];
+      renderSetup();
     },
     setWalkOn(el) { state.course.includeWalk = el.dataset.v === 'true'; renderSetup(); },
     setWalkMin(el) { state.course.walkMinutes = Number(el.dataset.v); renderSetup(); },
@@ -2014,7 +2072,8 @@
     },
     removeItem(el) {
       const o = state.course.order, i = Number(el.dataset.i);
-      if (o[i] && o[i][0] === 'S') return;
+      const storeCount = o.filter((k) => k[0] === 'S').length;
+      if (o[i] && o[i][0] === 'S' && storeCount <= 1) return;
       o.splice(i, 1); renderEdit();
     },
     addPlace: addPlaceSheet,
@@ -2034,7 +2093,7 @@
     const el = e.target.closest('[data-action]');
     if (!el) return;
     if (el.closest('#toast')) $('#toast').classList.remove('show');
-    const memberOnlyActions = ['toggleFav','cardFav','undoFav','startCourse','openReviews','reviewFor','pickReviewStore','delReview','likeCourse','takeCourse','saveCourse','saveAsNew','editCourse','moveItem','removeItem','addPlace','chooseAddPlace','chooseStore','setWalkOn','setWalkMin','setReadMin','makeCourse','toggleVis','nudgeOff'];
+    const memberOnlyActions = ['toggleFav','cardFav','undoFav','startCourse','openReviews','reviewFor','pickReviewStore','delReview','likeCourse','takeCourse','saveCourse','saveAsNew','editCourse','moveItem','removeItem','addPlace','chooseAddPlace','chooseStore','clearStorePick','removeSetupStore','setWalkOn','setWalkMin','setReadMin','makeCourse','toggleVis','nudgeOff'];
     if (memberOnlyActions.includes(el.dataset.action) && !requireMember()) return;
     const fn = actions[el.dataset.action];
     if (fn) fn(el, e);
