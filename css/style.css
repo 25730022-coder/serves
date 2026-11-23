@@ -347,3 +347,177 @@ label.section{display:block}
 .nudge small{display:block;color:var(--muted);margin-top:2px}
 .nudge-acts{display:flex;gap:6px;margin-top:8px}
 .field-err{color:var(--danger);font-size:.85rem;margin:4px 0 0}
+
+/* ===== 홈 화면 · 추천 책방 가로 스와이프 · 새소식 · 코스 썸네일 복구 스타일 ===== */
+.home-screen {
+  padding-top: 8px;
+}
+
+.home-hero {
+  position: relative;
+  overflow: hidden;
+  border-radius: 18px;
+  padding: 22px 18px 20px;
+  margin-bottom: 22px;
+  background: linear-gradient(145deg, #274736 0%, #365c47 58%, #476e57 100%);
+  color: #ffffff;
+  box-shadow: 0 8px 20px rgba(28, 49, 38, 0.14);
+}
+
+.home-hero-content h2 {
+  margin: 0 0 14px;
+  font-size: 1.32rem;
+  line-height: 1.38;
+  letter-spacing: -0.02em;
+  color: #ffffff;
+}
+
+.home-search {
+  margin-bottom: 12px;
+}
+
+.home-topics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 10px;
+}
+
+.home-topic {
+  border: 1px solid rgba(255, 255, 255, 0.34);
+  background: rgba(255, 255, 255, 0.14);
+  color: #ffffff;
+  border-radius: 999px;
+  padding: 5px 11px;
+  font-size: 0.78rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.home-block {
+  margin-top: 24px;
+}
+
+.home-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.home-heading h3 {
+  margin: 0;
+  font-size: 1.04rem;
+  font-weight: 700;
+}
+
+/* 오늘 이런 책방 어때요? 가로 스와이프 복구 */
+.home-pick-grid {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  gap: 12px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 6px;
+  scrollbar-width: none;
+}
+
+.home-pick-grid::-webkit-scrollbar {
+  display: none;
+}
+
+.home-pick-card {
+  flex: 0 0 156px;
+  width: 156px;
+  scroll-snap-align: start;
+  border: 1px solid var(--line, #e2e4df);
+  border-radius: 14px;
+  background: var(--card, #ffffff);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  text-align: left;
+  padding: 0;
+}
+
+.home-pick-card img,
+.home-pick-thumb {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  height: 156px;
+  object-fit: cover;
+  display: block;
+}
+
+.home-pick-info,
+.home-pick-body {
+  padding: 9px 10px 11px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* 새소식 리스트 블록 복구 */
+.home-news,
+.home-news-list {
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--line, #e2e4df);
+}
+
+.home-news-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 5px;
+  padding: 12px 2px;
+  border-bottom: 1px solid var(--line, #e2e4df);
+  text-decoration: none;
+  color: inherit;
+}
+
+.home-news-title {
+  display: block;
+  font-size: 0.92rem;
+  font-weight: 600;
+  line-height: 1.42;
+  color: var(--ink, #1f2421);
+  text-decoration: none;
+}
+
+.home-news-meta {
+  display: block;
+  font-size: 0.77rem;
+  color: var(--muted, #6b726e);
+  text-decoration: none;
+}
+
+/* 코스 카드 좌측 썸네일 슬롯 복구 */
+.course-card-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.course-thumb-slot {
+  flex: 0 0 84px;
+  width: 84px;
+  height: 84px;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #eef1ec;
+}
+
+.course-thumb-slot img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.course-card-body {
+  flex: 1;
+  min-width: 0;
+}
