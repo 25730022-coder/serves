@@ -521,14 +521,7 @@ label.section{display:block}
 .fact>span:first-child,.fact.phone-fact>span:first-child{width:54px;flex:0 0 54px;font-size:.95rem;letter-spacing:normal;white-space:nowrap}
 .fact .val{min-width:0}
 
-/* 11/23 피드백 반영: 책방 탐색 전체 조건 드로어 · 새 코스 다중 책방 선택 · 마이페이지 아이콘/토글 */
-.filter-drawer{border:1px solid var(--line);border-radius:var(--radius);background:var(--soft);margin:0 0 10px;overflow:hidden}
-.filter-drawer-toggle{display:flex;align-items:center;justify-content:space-between;width:100%;border:0;background:none;padding:11px 12px;font-size:.92rem;font-weight:700;text-align:left;color:var(--ink)}
-.filter-drawer-toggle:hover{background:var(--hover)}
-.filter-drawer-right{font-size:.84rem;font-weight:400;color:var(--muted)}
-.filter-drawer-panel{padding:4px 10px 10px;border-top:1px solid var(--line);background:var(--paper)}
-.filter-drawer-panel .selected{margin-bottom:0}
-
+/* 11/23 피드백 반영: 새 코스 다중 책방 선택 · 마이페이지 아이콘/토글 */
 .setup-store-list{display:flex;flex-direction:column;gap:6px;margin:0 0 8px}
 .setup-store-item{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 12px;border:1px solid var(--line);border-radius:var(--radius);background:var(--soft);font-size:.94rem}
 .setup-store-item b{min-width:0;overflow-wrap:anywhere}
