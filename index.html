@@ -50,10 +50,9 @@
         <div class="search">
           <input type="search" id="listQuery" placeholder="마포구, 책방 이름 검색" aria-label="책방 검색" autocomplete="off">
         </div>
-        <div class="filter-drawer">
-          <button type="button" class="filter-drawer-toggle" id="filterDrawerToggle" data-action="toggleFilterDrawer" aria-expanded="false" aria-controls="allConditionsPanel">
-            <span>전체 조건</span>
-            <span class="filter-drawer-right" id="filterDrawerMeta">펼치기 ▾</span>
+        <div class="chips" id="filterChips"></div>
+        <div class="selected" id="selectedBox" hidden></div>
+        <div class="rowline">
           </button>
           <div class="filter-drawer-panel" id="allConditionsPanel" hidden></div>
         </div>
