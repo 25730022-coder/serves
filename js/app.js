@@ -175,7 +175,7 @@ const TITLES = {
     status: 'loading', // loading | ready | error
     stores: [], places: [], shared: [], loadErrors: [],
     ctab: 'all', psort: '', cf: blankCF(), reviewStoreId: null, reviewCtx: null, dtab: 'info', // dtab: 책방 상세 탭 (info | comments)
-    query: '', applied: [], sort: 'name', visible: PAGE, filterOpen: false,
+    query: '', applied: [], sort: 'name', visible: PAGE,
     preset: null, presetPending: false, cfPreset: null, cfPending: false, signup: null,
     currentId: null, tab: 'fav',
     course: blankCourse(null)
@@ -551,14 +551,6 @@ function renderScreen(name) {
     if (document.activeElement !== input) input.value = state.query;
     $('#sortSelect').value = state.sort;
 
-    const toggle = $('#filterDrawerToggle');
-    const panel = $('#filterDrawerPanel');
-    const meta = $('#filterDrawerMeta');
-    const activeCount = state.applied.length + (state.query.trim() ? 1 : 0);
-    if (toggle) toggle.setAttribute('aria-expanded', String(!!state.filterOpen));
-    if (panel) panel.hidden = !state.filterOpen;
-    if (meta) meta.textContent = (activeCount ? activeCount + '개 선택 · ' : '') + (state.filterOpen ? '접기 ▴' : '펼치기 ▾');
-
     $('#filterChips').innerHTML = GROUPS.map((g) => {
       const n = activeValues(g.key).length;
       return '<button type="button" class="chip' + (n ? ' on' : '') + '" data-action="openFilter" data-key="' + g.key + '">' + g.label + (n ? ' ' + n : '') + ' ▾</button>';
@@ -583,7 +575,7 @@ function renderScreen(name) {
       return;
     }
     const list = filteredStores();
-    $('#resultMeta').textContent = '검색 결과 ' + list.length + '건 (JSON ' + state.stores.filter(s => s.sourceType === 'JSON').length + ' · API ' + state.stores.filter(s => s.sourceType === 'API').length + ')';
+    $('#resultMeta').textContent = '검색 결과 ' + list.length + '건';
     if (!list.length) {
       body.innerHTML = loadWarning() + '<div class="state"><div class="icon">∅</div><h3>조건에 맞는 책방이 없어요</h3><p>선택한 조건을 줄이거나<br>다른 지역에서 찾아보세요.</p></div>' +
         '<button type="button" class="btn" data-action="removeLast"' + (state.applied.length ? '' : ' disabled') + '>마지막 필터 해제</button>' +
@@ -1581,9 +1573,9 @@ function renderScreen(name) {
     c.title = rec.title;
     c.visibility = rec.visibility;
     if (opts.asNew) { delete c.srcId; delete c.from; }
-    state.lastCourseTitle = rec.title;
-    state.lastCourseVis = rec.visibility;
-    go('done-course');
+    toast('나만의 코스를 저장했어요.');
+    state.ctab = 'saved';
+    go('course', { reset: true });
   }
   /* 저장한 코스를 고쳐서 새 코스로 저장할 때 이름을 그대로 두면 원래 코스와 헷갈리니까 '기존 코스 이름 수정'으로 */
   function copyTitle(c) {
@@ -1611,12 +1603,6 @@ function renderScreen(name) {
       '<button type="button" class="btn light" data-action="closeSheet">취소</button>' +
       '<button type="submit" class="btn">저장</button></div></div>' +
       '</form>');
-  }
-  function renderDoneCourse() {
-    $('#doneCourseBody').innerHTML =
-      '<div class="state"><div class="icon">✓</div><h3>나만의 코스를 저장했어요</h3><p>' + esc(state.lastCourseTitle || '') + '<br>' + (state.lastCourseVis === 'public' ? '공개 코스로 저장했어요. 전체 코스 목록에서 볼 수 있어요.' : '저장한 코스에서 다시 열 수 있어요.') + '</p></div>' +
-      '<button type="button" class="btn" data-action="goCourseSaved">저장한 코스 확인하기</button>' +
-      '<button type="button" class="btn light" data-nav="home">홈으로 돌아가기</button>';
   }
   let pendingStoreIds = [];
   function renderPickStoreSheetBody() {
@@ -1918,13 +1904,12 @@ function renderScreen(name) {
       });
     },
     quickTopic(el) {
-      state.query = ''; state.visible = PAGE; state.filterOpen = false;
+      state.query = ''; state.visible = PAGE;
       const quickMap = { '혼자 가기': { key: 'facility', value: '혼자 가기' }, '좌석': { key: 'facility', value: '좌석' } };
       const filter = quickMap[el.dataset.value] || { key: el.dataset.key, value: el.dataset.value };
       state.applied = [filter];
       go('list');
     },
-    toggleFilterDrawer() { state.filterOpen = !state.filterOpen; renderList(); },
     openFilter(el) { openFilter(el.dataset.key); },
     applyFilter(el) {
       const key = el.dataset.key;
@@ -1982,7 +1967,6 @@ function renderScreen(name) {
     copyAddr(el) { const s = getStore(el.dataset.id); if (s) copyText(s.address); },
     startCourse(el) { startCourse(el.dataset.id); },
     goMyFav() { state.tab = 'fav'; go('my'); },
-    goCourseSaved() { state.ctab = 'saved'; go('course', { reset: true }); },
     courseTab(el) { state.ctab = el.dataset.tab; renderCourseHub(); },
     openCF(el) { openCF(el.dataset.key); },
     applyCF(el) {
@@ -2211,7 +2195,7 @@ function renderScreen(name) {
 
   $('#homeSearch').addEventListener('submit', (e) => {
     e.preventDefault();
-    state.query = $('#homeQuery').value.trim(); state.applied = []; state.visible = PAGE; state.filterOpen = false;
+    state.query = $('#homeQuery').value.trim(); state.applied = []; state.visible = PAGE;
     go('list');
   });
   $('#authForm').addEventListener('submit', async (e) => {
