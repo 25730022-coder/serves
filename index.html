@@ -50,8 +50,13 @@
         <div class="search">
           <input type="search" id="listQuery" placeholder="마포구, 책방 이름 검색" aria-label="책방 검색" autocomplete="off">
         </div>
-        <div class="chips" id="filterChips"></div>
-        <div class="selected" id="selectedBox"></div>
+        <div class="filter-drawer">
+          <button type="button" class="filter-drawer-toggle" id="filterDrawerToggle" data-action="toggleFilterDrawer" aria-expanded="false" aria-controls="allConditionsPanel">
+            <span>전체 조건</span>
+            <span class="filter-drawer-right" id="filterDrawerMeta">펼치기 ▾</span>
+          </button>
+          <div class="filter-drawer-panel" id="allConditionsPanel" hidden></div>
+        </div>
         <div class="rowline">
           <b id="resultMeta">검색 결과</b>
           <label class="sort">정렬:
@@ -75,7 +80,7 @@
         <div id="reviewBody"></div>
       </section>
 
-      <!-- 05 마이페이지 -->
+      <!-- 05 나의 책방 -->
       <section class="screen" data-screen="my" hidden>
         <div class="tabs" role="tablist">
           <button type="button" role="tab" data-action="myTab" data-tab="fav">즐겨찾기</button>
@@ -148,7 +153,7 @@
       <button type="button" data-nav="home"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h5v-6h4v6h5V10"/></svg><span>홈</span></button>
       <button type="button" data-nav="list"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg><span>책방 탐색</span></button>
       <button type="button" data-nav="course"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="19" r="2"/><circle cx="18" cy="5" r="2"/><path d="M8 19h7a3 3 0 0 0 0-6H9a3 3 0 0 1 0-6h7"/></svg><span>코스</span></button>
-      <button type="button" data-nav="my"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12v18l-6-4-6 4z"/></svg><span>마이페이지</span></button>
+      <button type="button" data-nav="my"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12v18l-6-4-6 4z"/></svg><span>나의 책방</span></button>
     </nav>
 
     <div class="sheet-wrap" id="sheetWrap" hidden>
