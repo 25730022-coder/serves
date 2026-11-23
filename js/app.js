@@ -175,7 +175,7 @@
     status: 'loading', // loading | ready | error
     stores: [], places: [], shared: [], loadErrors: [],
     ctab: 'all', psort: '', cf: blankCF(), reviewStoreId: null, reviewCtx: null, dtab: 'info', // dtab: 책방 상세 탭 (info | comments)
-    query: '', applied: [], sort: 'name', visible: PAGE, filterOpen: false,
+    query: '', applied: [], sort: 'name', visible: PAGE,
     preset: null, presetPending: false, cfPreset: null, cfPending: false, signup: null,
     currentId: null, tab: 'fav',
     course: blankCourse(null)
@@ -326,6 +326,7 @@
     state.status = state.loadErrors.length === 2 ? 'error' : 'ready';
     if (state.presetPending) {
       state.presetPending = false;
+      if (state.status === 'ready' && current === 'list' && me() && !state.applied.length && !state.query.trim()) applyPreset();
     }
     if (state.cfPending) {
       state.cfPending = false;
@@ -417,13 +418,11 @@
       go('course-setup');
     } else {
       if (name === 'list') {
-        /* 책방 탐색 진입 시 전체 조건이 보이도록 조건 초기화 및 필터 영역 기본 접힘 */
-        state.query = '';
-        state.visible = PAGE;
-        state.applied = [];
-        state.preset = null;
-        state.presetPending = false;
-        state.filterOpen = false;
+        /* 책방 탐색 진입 시 조건 초기화 — 로그인했다면 내 위치·취향으로 미리 채움 */
+        state.query = ''; state.visible = PAGE; state.preset = null; state.presetPending = false;
+        if (!me()) state.applied = [];
+        else if (state.status === 'ready') applyPreset();
+        else { state.applied = []; state.presetPending = true; }
       }
       go(name, { reset: true });
     }
@@ -479,6 +478,9 @@
     return !sel.length || sel.some((v) => g.get(s).includes(v) || (g.key === 'region' && regionMatch(s.district, v)));
   });
   const sameFilters = (a, b) => a.length === b.length && a.every((x) => b.some((y) => y.key === x.key && y.value === x.value));
+  /* 내 위치·취향을 책방 탐색 조건으로 미리 채워요.
+     조건을 전부 겹치면 결과가 0건이 되기 쉬워서, 결과가 남는 조건만 위치 → 분야 → 시설 → 분위기 순서로 적용하고
+     쓰지 못한 조건은 목록 위 안내문으로 알려 줘요. */
   function computePreset() {
     const a = me();
     if (!a) return { filters: [], note: '' };
@@ -505,6 +507,9 @@
       : (a, b) => a.title.localeCompare(b.title, 'ko'));
     return r;
   }
+  // 책방 카드 썸네일: asset/thumbs/thumb-01.svg ~ thumb-40.svg 중 하나를 책방마다 '랜덤처럼' 정해요.
+  // 책방 id로 계산하니까 같은 책방은 늘 같은 썸네일이고(새로고침·필터를 바꿔도 안 변함), 전체로 보면 40종이 골고루 섞여요.
+  // 썸네일을 더 늘리려면 asset/thumbs/에 thumb-41.svg처럼 추가하고 THUMB_COUNT만 올리면 돼요.
   const THUMB_COUNT = 40;
   function thumbSrc(s) {
     const key = String(s.id || s.title || '');
@@ -513,9 +518,13 @@
     h ^= h >>> 15; h = Math.imul(h, 2246822507); h ^= h >>> 13;
     return 'asset/thumbs/thumb-' + String((h >>> 0) % THUMB_COUNT + 1).padStart(2, '0') + '.svg';
   }
+  // 코스 카드 썸네일: asset/course-thumbs/course-01.svg ~ course-10.svg 중 하나를 코스마다 '랜덤처럼' 정해요.
+  // 책방 썸네일과 같은 방식이라, 같은 코스는 새로고침해도 늘 같은 이미지가 나오고 전체로 보면 10종이 골고루 섞여요.
+  // 내 코스로 담은 코스는 원본 코스(srcId)와 같은 이미지를 써요.
+  // 이미지를 늘리려면 asset/course-thumbs/에 course-11.svg처럼 추가하고 COURSE_THUMB_COUNT만 올리면 돼요.
   const COURSE_THUMB_COUNT = 10;
   function courseThumbSrc(x) {
-    const key = 'b' + String(x.srcId || x.id || x.title || '');
+    const key = 'b' + String(x.srcId || x.id || x.title || ''); // 'b'는 기본 코스 7개가 서로 다른 이미지를 받도록 고른 값
     let h = 2166136261;
     for (let i = 0; i < key.length; i++) { h ^= key.charCodeAt(i); h = Math.imul(h, 16777619); }
     h ^= h >>> 15; h = Math.imul(h, 2246822507); h ^= h >>> 13;
@@ -536,75 +545,32 @@
       (noHeart ? '' : '<button type="button" class="heart" data-action="cardFav" data-id="' + s.id + '" aria-pressed="' + fav + '" aria-label="' + esc(s.title) + ' 즐겨찾기">' + (fav ? '★' : '☆') + '</button>') +
       '</div>';
   }
-  function allConditionsPanelHTML() {
-    const selectedChips = [];
-    if (state.query.trim()) {
-      selectedChips.push('<span class="chip">“' + esc(state.query.trim()) + '” <button type="button" class="x" data-action="clearQuery" aria-label="검색어 지우기">×</button></span>');
-    }
-    state.applied.forEach((a, i) => {
-      const lab = a.key === 'region' ? regionLabel(a.value) : a.value;
-      selectedChips.push('<span class="chip">' + esc(lab) + ' <button type="button" class="x" data-action="removeFilter" data-i="' + i + '" aria-label="' + esc(lab) + ' 해제">×</button></span>');
-    });
-
-    const selectedBar = selectedChips.length
-      ? '<div class="selected filter-selected"><span>선택 조건:</span>' + selectedChips.join('') + '<button type="button" class="reset" data-action="resetAll">초기화</button></div>'
-      : '';
-
-    const groupsHTML = GROUPS.map((g) => {
-      const activeVals = activeValues(g.key);
-      if (g.key === 'region') {
-        const provs = regionTree().map((t) => t.prov);
-        const subSelected = activeVals.filter((v) => v.indexOf(' ') >= 0);
-        const chips = provs.map((p) => {
-          const on = activeVals.includes(p);
-          return '<button type="button" class="chip' + (on ? ' on' : '') + '" data-action="toggleListFilter" data-key="region" data-value="' + esc(p) + '" aria-pressed="' + on + '">' + esc(regionLabel(p)) + '</button>';
-        }).concat(subSelected.map((sub) =>
-          '<button type="button" class="chip on" data-action="toggleListFilter" data-key="region" data-value="' + esc(sub) + '" aria-pressed="true">' + esc(sub) + ' ×</button>'
-        ));
-        return '<div class="filter-group">' +
-          '<div class="filter-group-head"><b>' + esc(g.label) + '</b><button type="button" class="filter-group-subbtn" data-action="openFilter" data-key="region">시·군·구 선택 ▾</button></div>' +
-          '<div class="chips">' + chips.join('') + '</div></div>';
-      }
-      const opts = filterOptions(g.key);
-      return '<div class="filter-group">' +
-        '<div class="filter-group-head"><b>' + esc(g.label) + '</b></div>' +
-        '<div class="chips">' + opts.map((o) => {
-          const on = activeVals.includes(o);
-          return '<button type="button" class="chip' + (on ? ' on' : '') + '" data-action="toggleListFilter" data-key="' + g.key + '" data-value="' + esc(o) + '" aria-pressed="' + on + '">' + esc(o) + '</button>';
-        }).join('') + '</div></div>';
-    }).join('');
-
-    const memberPrefBtn = me() && (me().region || getPrefs().category.length || getPrefs().mood.length || getPrefs().facility.length)
-      ? '<button type="button" class="btn light sm" data-action="applySavedPrefs">내 취향 조건 불러오기</button>'
-      : '';
-    const resetBtn = state.applied.length || state.query.trim()
-      ? '<button type="button" class="btn light sm" data-action="resetAll">전체 초기화</button>'
-      : '';
-    const foot = (memberPrefBtn || resetBtn) ? '<div class="filter-drawer-foot">' + memberPrefBtn + resetBtn + '</div>' : '';
-
-    return selectedBar + groupsHTML + foot;
-  }
   function renderList() {
     const input = $('#listQuery');
     if (document.activeElement !== input) input.value = state.query;
     $('#sortSelect').value = state.sort;
 
-    const toggleBtn = $('#filterDrawerToggle');
-    const panel = $('#allConditionsPanel');
-    const meta = $('#filterDrawerMeta');
-    const activeCount = state.applied.length;
-    if (toggleBtn && panel && meta) {
-      toggleBtn.setAttribute('aria-expanded', String(!!state.filterOpen));
-      toggleBtn.classList.toggle('is-open', !!state.filterOpen);
-      toggleBtn.classList.toggle('has-active', activeCount > 0);
-      meta.textContent = (activeCount ? activeCount + '개 선택 · ' : '') + (state.filterOpen ? '접기 ▴' : '펼치기 ▾');
-      panel.hidden = !state.filterOpen;
-      panel.innerHTML = state.filterOpen ? allConditionsPanelHTML() : '';
-    }
+    $('#filterChips').innerHTML = GROUPS.map((g) => {
+      const n = activeValues(g.key).length;
+      return '<button type="button" class="chip' + (n ? ' on' : '') + '" data-action="openFilter" data-key="' + g.key + '">' + g.label + (n ? ' ' + n : '') + ' ▾</button>';
+    }).join('');
 
+    const sel = $('#selectedBox');
     const body = $('#listBody');
     const more = $('#moreBtn');
     more.hidden = true;
+
+    const chips = [];
+    if (state.query.trim()) chips.push('<span class="chip">“' + esc(state.query.trim()) + '” <button type="button" class="x" data-action="clearQuery" aria-label="검색어 지우기">×</button></span>');
+    state.applied.forEach((a, i) => { const lab = a.key === 'region' ? regionLabel(a.value) : a.value; chips.push('<span class="chip">' + esc(lab) + ' <button type="button" class="x" data-action="removeFilter" data-i="' + i + '" aria-label="' + esc(lab) + ' 해제">×</button></span>'); });
+    const presetOn = state.preset && (state.preset.filters.length || state.preset.note) && !state.query.trim() && sameFilters(state.applied, state.preset.filters);
+    const presetNote = presetOn
+      ? '<span class="muted preset-note">' + (state.preset.filters.length ? '내 위치·취향이 미리 적용돼 있어요. ' : '') + esc(state.preset.note) + '</span>'
+      : '';
+    sel.hidden = false;
+    sel.innerHTML = (chips.length
+      ? '<span>선택 조건:</span>' + chips.join('') + '<button type="button" class="reset" data-action="resetAll">초기화</button>'
+      : '<span class="muted">선택된 조건이 없어요. 필터를 눌러 조건을 추가해 보세요.</span>') + presetNote;
 
     if (state.status !== 'ready') {
       $('#resultMeta').textContent = '검색 결과';
@@ -640,6 +606,8 @@
     const mine = db.get(KEY.reviews, []).filter((r) => r.bookstoreId === id);
     return (s ? s.reviews : []).concat(mine.slice().reverse());
   }
+  /* 탐색 필터는 책방 기본 정보가 아니라 실제 후기 체크 항목을 기준으로 집계해요.
+     후기 체크리스트의 표현을 필터에서 쓰는 짧은 시설명으로 통일합니다. */
   function reviewTagsOf(id) {
     return uniq(reviewsOf(id).flatMap((r) => Array.isArray(r.tags) ? r.tags : []));
   }
@@ -652,6 +620,8 @@
     return FACILITY_FILTERS.filter((v) => tags.some((t) => REVIEW_TO_FACILITY[t] === v));
   }
   function facilityValues(store) {
+    /* 공간대여·주차·카페·화장실은 기존 JSON/API의 facilities 값을 사용하고,
+       좌석·음료·콘센트·오래 머물기·혼자 가기는 실제 후기 태그에서 집계합니다. */
     return uniq((store.facilities || []).filter((v) => BASIC_FACILITY_FILTERS.includes(v))
       .concat(reviewFacilityValues(store.id)));
   }
@@ -661,6 +631,9 @@
     rs.forEach((r) => r.tags.forEach((t) => { c[t] = (c[t] || 0) + 1; }));
     return { total: rs.length, tags: Object.entries(c).sort((a, b) => b[1] - a[1]) };
   }
+  /* 후기 체크리스트 → 책방 키워드:
+     분위기 · 공간·시설 · 책·큐레이션 각 분류에서 가장 많이 선택된 항목만 표시해요.
+     최다 선택 수가 같은 항목은 최대 2개까지 보여주고, 2개를 초과하면 가나다순으로 2개를 골라요. */
   function reviewKeywords(id) {
     const counts = Object.fromEntries(tagCounts(id).tags);
     return REVIEW_GROUPS.flatMap((group) => {
@@ -676,6 +649,7 @@
         .map((item) => item.tag);
     });
   }
+  /* 키워드 색: 후기 체크리스트 분류(REVIEW_GROUPS 순서 — 분위기 · 공간·시설 · 책·큐레이션)마다 다른 색 */
   const KW_CLASS = ['kw-mood', 'kw-space', 'kw-book'];
   function reviewKeywordsHTML(id) {
     const k = reviewKeywords(id);
@@ -684,6 +658,7 @@
       return '<span class="chip' + (KW_CLASS[gi] ? ' ' + KW_CLASS[gi] : '') + '"' + (gi >= 0 ? ' title="' + esc(REVIEW_GROUPS[gi].label) + '"' : '') + '>' + esc(t) + '</span>';
     }).join('') + '</div>' : '';
   }
+  /* 줄글(한 줄) 후기만 모아요 — 최신순. 내 후기는 이 책방에 몇 번째로 남겼는지(visit)를 함께 가져요 */
   function commentsOf(id) {
     const s = getStore(id);
     const mine = db.get(KEY.reviews, []).filter((r) => r.bookstoreId === id)
@@ -695,6 +670,7 @@
   const visitLabel = (n) => (n <= 10 ? VISIT_ORD[n] + ' 번째 방문' : n + '번째 방문');
 
   const hasReview = (storeId) => db.get(KEY.reviews, []).some((r) => r.bookstoreId === storeId);
+  /* 후기 유도: 저장한 코스를 만든 지 하루 이상 지났고 그 책방 후기가 아직 없으면 '다녀오셨나요?'를 띄워요 */
   function nudgeCourse() {
     const today = todayStr();
     return db.get(KEY.courses, []).slice().reverse().find((x) => !x.nudgeOff && x.createdAt &&
@@ -708,10 +684,12 @@
       '<div class="nudge-acts"><button type="button" class="btn sm" data-action="reviewFor" data-id="' + c.bookstoreId + '" data-course="' + c.id + '">후기 쓰기</button>' +
       '<button type="button" class="btn light sm" data-action="nudgeOff" data-id="' + c.id + '">아직이에요</button></div></div>';
   }
+  /* 앱을 쓰기 전에 다녀온 곳도 후기를 남길 수 있다는 안내 (아직 후기가 하나도 없을 때만) */
   function firstReviewBannerHTML() {
     if (db.get(KEY.reviews, []).length) return '';
     return '<button type="button" class="banner soft" data-action="pickReviewStore"><span><b>다녀온 책방이 있나요?</b><small>이 앱을 쓰기 전에 다녀온 곳도 체크만으로 후기를 남길 수 있어요</small></span><span class="go" aria-hidden="true">〉</span></button>';
   }
+  /* 다녀온 책방 찾기 (시트): 검색 전에는 즐겨찾기·최근 본 책방부터 */
   function reviewStoreListHTML(q) {
     q = (q || '').trim().toLowerCase();
     const list = q
@@ -728,6 +706,7 @@
   }
 
   /* ---------- 상세 ---------- */
+  /* 책방 위치 지도: Leaflet + OpenStreetMap (API 키 불필요). 라이브러리는 지도가 처음 필요할 때 한 번만 불러와요. */
   const LEAFLET_CSS = 'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css';
   const LEAFLET_JS = 'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js';
   let leafletLoading = null;
@@ -751,7 +730,7 @@
       css.onerror = fail; js.onerror = fail;
       document.head.append(css, js);
     });
-    leafletLoading.catch(() => { leafletLoading = null; });
+    leafletLoading.catch(() => { leafletLoading = null; }); /* 실패하면 다음에 다시 시도할 수 있게 */
     return leafletLoading;
   }
   function disposeDetailMap() {
@@ -766,6 +745,7 @@
       if (slot.isConnected && !slot.classList.contains('is-live')) slot.innerHTML = '<span>지도를 불러오지 못했어요</span><small>인터넷 연결을 확인한 뒤 다시 열어 주세요</small>';
     };
     loadLeaflet().then((L) => {
+      /* 불러오는 사이 다른 화면·탭으로 넘어갔다면 그리지 않아요 */
       if (!slot.isConnected || current !== 'detail' || state.currentId !== s.id) return;
       disposeDetailMap();
       slot.innerHTML = '';
@@ -787,8 +767,10 @@
     const fav = isFav(s.id);
     const chipTags = uniq(s.categories.concat(s.themes.slice(0, 1), reviewMoodValues(s.id), reviewFacilityValues(s.id)));
     const cn = commentsOf(s.id).length;
+    /* 코스 화면의 '전체 코스 / 저장한 코스'처럼, 이름·분류 아래에서 '책방 정보'와 '줄글 후기만' 중에 골라 봐요 */
     const dtabs = [['info', '책방 정보'], ['comments', cn ? '줄글 후기 ' + cn : '줄글 후기']];
     const onComments = state.dtab === 'comments';
+    /* 위쪽 내용(.detail-main)과 하단 버튼(.sticky)을 나눠서, 탭 내용이 짧아도 버튼은 항상 화면 맨 아래(하단 메뉴 바로 위)에 놓여요 */
     box.innerHTML = '<div class="detail-main">' +
       '<div class="hero"><span class="hero-letter" aria-hidden="true">' + esc(s.title[0]) + '</span><small>' + esc(s.district) + '</small></div>' +
       '<div class="title-row"><div class="detail-title-with-source"><h2>' + esc(s.title) + '</h2>' + sourceBadge(s) + '</div>' +
@@ -802,6 +784,7 @@
     $('[data-screen="detail"]').classList.add('has-sticky');
     mountDetailMap(s);
   }
+  /* '책방 정보' 탭: 주소·운영·휴무일 등 기본 정보 + 큐레이션 소개 + 후기에서 뽑은 키워드 */
   function detailInfoHTML(s) {
     const visits = db.get(KEY.visits, []).filter((v) => v.bookstoreId === s.id).length;
     return '<div class="fact"><span>주소</span><div class="val"><div class="address-inline"><span>' + esc(display(s.address, '주소 정보 없음')) + '</span>' + (s.address ? '<button type="button" class="copy-icon-btn" data-action="copyAddr" data-id="' + s.id + '" title="주소 복사" aria-label="주소 복사">⧉</button>' : '') + '</div>' + '</div></div>' +
@@ -813,6 +796,7 @@
         ? '<div class="detail-map-slot" id="detailMap" role="region" aria-label="책방 위치 지도"><span>지도를 불러오는 중이에요</span></div>'
         : '<div class="detail-map-slot" role="region" aria-label="책방 위치 지도"><span>지도를 표시할 수 없어요</span><small>이 책방은 위치 좌표 정보가 없어요</small></div>');
   }
+  /* '줄글 후기' 탭: 한 줄 후기만 최신순으로 */
   function detailCommentsHTML(s) {
     const list = commentsOf(s.id);
     return list.length
@@ -823,6 +807,7 @@
         '<p class="para">“' + esc(r.comment.trim()) + '”</p></div>').join('')
       : '<div class="state"><div class="icon">✎</div><h3>아직 줄글 후기가 없어요</h3><p>후기를 쓸 때 한 줄 후기를 남기면<br>여기에 모여요.</p></div>';
   }
+  /* 즐겨찾기: 화면을 넘기지 않고 그 자리에서 바꾸고, 토스트로 다음 행동/되돌리기를 제공 */
   function setFav(id, on) {
     let f = db.get(KEY.fav, []);
     if (on && !f.includes(id)) f.push(id);
@@ -875,7 +860,7 @@
       '<span class="home-pick-place">' + esc(display(s.district, '지역 정보 없음')) + '</span>' +
       '</button>';
   }
-  /* ---------- 홈 새소식 ---------- */
+  /* ---------- 홈 새소식: data/news.json (scripts/fetch_news.py가 수집한 최신 뉴스 3 + 행사 2) ---------- */
   let homeNews = { status: 'loading', items: [], updatedAt: '' };
   const newsDate = (v) => String(v || '').slice(0, 10).replace(/-/g, '.');
   async function loadHomeNews() {
@@ -893,6 +878,7 @@
     }
     if (current === 'home' && state.status === 'ready') renderHome();
   }
+  /* 왼쪽 아이콘: 뉴스는 신문(청록), 행사는 달력(주황). 제목 앞 둥근 라벨은 뉴스=테두리, 행사=검정 */
   const newsSvg = (paths) => '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + paths + '</svg>';
   const NEWS_ICONS = {
     news: newsSvg('<path d="M4 5h13v14H6a2 2 0 0 1-2-2z"/><path d="M17 9h3v8a2 2 0 0 1-2 2"/><path d="M8 9h5M8 13h5"/>'),
@@ -928,6 +914,7 @@
       '<section class="home-block"><div class="home-heading"><h3>오늘은 이런 책방 어때요?</h3></div>' +
       '<div class="home-pick-grid" aria-label="추천 책방 6곳, 좌우로 밀어보세요">' + picks.map(homePickCard).join('') + '</div></section>' +
       homeNewsHTML();
+    /* 인기 코스 3개 (전체 코스 '인기순'과 같은 기준) — 로그인 여부와 상관없이 표시, 누르면 코스 정보 화면으로 */
     let h = '';
     const likedIds = db.get(KEY.likes, []);
     const likeCnt = (x) => x.likes + (likedIds.includes(x.id) ? 1 : 0);
@@ -957,7 +944,7 @@
       '<p class="para">' + (ctx
         ? '“' + esc(ctx.title) + '” 코스는 어떠셨나요? '
         : '이 앱을 쓰기 전에 다녀온 곳도 괜찮아요. ') +
-      '분위기 · 공간·시설 · 책·큐레이션에서 각각 ' + pickRule + '씩 고르고, 한 줄 후기를 작성해 주세요.</p>' +
+      '분위기 · 공간·시설 · 책·큐레이션에서 각각 ' + pickRule + '씩 골라 주세요. 한 줄 후기는 쓰지 않아도 괜찮아요.</p>' +
       '<form id="reviewForm" novalidate>' +
       REVIEW_GROUPS.map((g, i) =>
         '<div id="rgroup' + i + '">' +
@@ -966,18 +953,18 @@
         '<div class="chips" role="group" aria-label="' + esc(g.label) + '">' +
         g.options.map((o) => '<label class="chk"><input type="checkbox" name="rtag" value="' + esc(o) + '"><span>' + esc(o) + '</span></label>').join('') +
         '</div><p class="field-err" id="rerr' + i + '" role="alert" hidden></p></div>').join('') +
-      '<h3 class="section">한 줄 후기 <small class="muted">(필수)</small></h3>' +
-      '<textarea class="inputarea" id="reviewComment" maxlength="80" required placeholder="책방에서의 경험을 한 줄로 남겨 주세요" aria-label="한 줄 후기 (필수)"></textarea>' +
-      '<div class="counter" id="rcount">0/80</div>' +
-      '<p class="field-err" id="rcommentErr" role="alert" hidden></p>' +
+      '<h3 class="section">한 줄 후기 <small class="muted">(선택)</small></h3>' +
+      '<textarea class="inputarea" id="reviewComment" maxlength="80" placeholder="하고 싶은 말이 있다면 적어 주세요" aria-label="한 줄 후기 (선택)"></textarea><div class="counter" id="rcount">0/80</div>' +
       '<div class="sticky"><button type="submit" class="btn">후기 등록</button></div></form>';
     $('[data-screen="reviews"]').classList.add('has-sticky');
     syncReviewGroups();
   }
+  /* 분류(분위기 · 공간·시설 · 책·큐레이션)별로 몇 개를 골랐는지 */
   function reviewGroupCounts() {
     const picked = $$('input[name="rtag"]:checked').map((i) => i.value);
     return REVIEW_GROUPS.map((g) => picked.filter((t) => g.options.includes(t)).length);
   }
+  /* 선택 개수를 분류 옆에 보여주고, 최대 개수에 닿으면 그 분류의 나머지 항목은 잠가요. 1개 이상 골랐다면 안내 문구는 걷어요 */
   function syncReviewGroups() {
     const counts = reviewGroupCounts();
     REVIEW_GROUPS.forEach((g, i) => {
@@ -994,37 +981,23 @@
   function submitReview() {
     const tags = $$('input[name="rtag"]:checked').map((i) => i.value);
     const comment = $('#reviewComment').value.trim();
+    /* 세 분류 모두 1~3개를 골라야 등록할 수 있어요 — 부족한 분류를 표시하고 첫 번째 분류로 스크롤 */
     const counts = reviewGroupCounts();
     const bad = REVIEW_GROUPS.map((g, i) => i).filter((i) => counts[i] < REVIEW_PICK_MIN || counts[i] > REVIEW_PICK_MAX);
-    const commentMissing = !comment;
-    if (bad.length || commentMissing) {
+    if (bad.length) {
       bad.forEach((i) => {
         $('#rcnt' + i).classList.add('err');
         const e = $('#rerr' + i);
         e.textContent = REVIEW_GROUPS[i].label + '에서 ' + REVIEW_PICK_MIN + '~' + REVIEW_PICK_MAX + '개를 골라 주세요.';
         e.hidden = false;
       });
-      const cerr = $('#rcommentErr');
-      if (cerr) {
-        if (commentMissing) {
-          cerr.textContent = '한 줄 후기를 입력해 주세요.';
-          cerr.hidden = false;
-        } else {
-          cerr.hidden = true;
-        }
-      }
-      if (bad.length) {
-        toast(bad.map((i) => REVIEW_GROUPS[i].label).join(', ') + '에서 ' + REVIEW_PICK_MIN + '~' + REVIEW_PICK_MAX + '개씩 골라 주세요.');
-        $('#rgroup' + bad[0]).scrollIntoView({ block: 'center' });
-      } else {
-        toast('한 줄 후기를 입력해 주세요.');
-        $('#reviewComment').scrollIntoView({ block: 'center' });
-        $('#reviewComment').focus();
-      }
+      toast(bad.map((i) => REVIEW_GROUPS[i].label).join(', ') + '에서 ' + REVIEW_PICK_MIN + '~' + REVIEW_PICK_MAX + '개씩 골라 주세요.');
+      $('#rgroup' + bad[0]).scrollIntoView({ block: 'center' });
       return;
     }
     if (!requireMember()) return;
     const all = db.get(KEY.reviews, []);
+    /* 이 책방에 몇 번째로 남기는 후기인지(방문 횟수)와 작성자 닉네임을 함께 저장 */
     const prev = all.filter((r) => r.bookstoreId === state.reviewStoreId);
     const visit = Math.max(prev.length, ...prev.map((r) => Number(r.visit) || 0)) + 1;
     const rec = { reviewId: 'r' + Date.now(), bookstoreId: state.reviewStoreId, tags: tags, comment: comment, date: todayStr(), nickname: me() ? me().nickname : '', visit: visit };
@@ -1077,6 +1050,7 @@
       : '<div class="state"><div class="icon">✎</div><h3>아직 남긴 후기가 없어요</h3><p>이 앱을 쓰기 전에 다녀온 책방도 괜찮아요.<br>분류마다 1~3개씩 눌러 체크만으로 후기를 남길 수 있어요.</p></div>' + add;
     return head + legacyVisitsHTML();
   }
+  /* 예전에 남긴 방문 기록(메모)은 지우지 않고 후기 탭 아래에 그대로 보여줘요 */
   function legacyVisitsHTML() {
     const v = db.get(KEY.visits, []).filter((r) => getStore(r.bookstoreId));
     if (!v.length) return '';
@@ -1095,42 +1069,31 @@
   }
 
   /* ---------- 코스 ---------- */
+  /* ---------- 코스 허브 (전체 코스 · 저장한 코스) ---------- */
   function routeText(x) {
     return x.order.map(itemInfo).filter(Boolean).map((it) => it.name).join(' → ');
   }
   function courseMeta(x) {
     return '장소 ' + x.order.length + '곳 · 독서 ' + fmtMin(x.readingMinutes) + (x.includeWalk ? ' · 산책 ' + x.walkMinutes + '분' : '');
   }
+  /* 코스 제목: 누르면 코스 정보(지도·요약)가 열려요 */
   function courseTitleHTML(x) {
     return '<button type="button" class="card-title" data-action="openCourse" data-id="' + x.id + '" data-mode="map">' + esc(x.title) + ' <span aria-hidden="true">〉</span></button>';
   }
-  const COURSE_EDIT_ICON = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>';
-  const COURSE_DEL_ICON = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>';
-  function visToggleHTML(x) {
-    const isPublic = x.visibility === 'public';
-    return '<button type="button" role="switch" class="vis-toggle' + (isPublic ? ' is-on' : '') + '" aria-checked="' + isPublic + '" data-action="toggleVis" data-id="' + x.id + '" aria-label="공개 여부 전환 (현재 ' + (isPublic ? '공개' : '비공개') + ')">' +
-      '<span class="vis-toggle-label">' + (isPublic ? '공개' : '비공개') + '</span>' +
-      '<span class="vis-toggle-track" aria-hidden="true"><span class="vis-toggle-thumb"></span></span>' +
-      '</button>';
-  }
-  /* 저장한 코스 카드 (코스 허브·나의 책방 공용): 편집/삭제 아이콘 + 공개/비공개 토글 */
+  /* 저장한 코스 카드 (코스 허브·나의 책방 공용) */
   function courseCardHTML(x) {
     const badge = x.from
       ? '<span class="badge">' + esc(x.from) + '님의 코스</span>'
-      : '';
+      : '<span class="badge' + (x.visibility === 'public' ? ' on' : '') + '">' + (x.visibility === 'public' ? '공개' : '비공개') + '</span>';
     const reviewBtn = !getStore(x.bookstoreId) ? ''
       : hasReview(x.bookstoreId)
         ? '<button type="button" class="btn light sm" disabled>후기 작성 ✓</button>'
         : '<button type="button" class="btn sm" data-action="reviewFor" data-id="' + x.bookstoreId + '" data-course="' + x.id + '">후기 쓰기</button>';
-    const iconActs = '<div class="course-icon-acts">' +
-      '<button type="button" class="course-icon-btn" data-action="openCourse" data-id="' + x.id + '" data-mode="edit" aria-label="코스 편집" title="편집">' + COURSE_EDIT_ICON + '</button>' +
-      '<button type="button" class="course-icon-btn is-danger" data-action="delCourse" data-id="' + x.id + '" aria-label="코스 삭제" title="삭제">' + COURSE_DEL_ICON + '</button>' +
-      '</div>';
-    const visToggle = x.srcId ? '' : visToggleHTML(x);
-    return '<div class="card course-with-thumb">' + courseThumbHTML(x) + '<div class="course-card-content">' +
-      '<div class="course-card-head"><div class="course-card-title-wrap">' + courseTitleHTML(x) + badge + '</div>' + iconActs + '</div>' +
+    return '<div class="card course-with-thumb">' + courseThumbHTML(x) + '<div class="course-card-content">' + courseTitleHTML(x) + badge +
       '<p class="para">' + courseMeta(x) + '<br>' + esc(routeText(x)) + '<br><span class="muted">' + esc(x.createdAt) + ' 저장</span></p>' +
-      '<div class="card-acts course-card-foot">' + reviewBtn + visToggle + '</div></div></div>';
+      '<div class="card-acts">' + reviewBtn + '<button type="button" class="btn light sm" data-action="openCourse" data-id="' + x.id + '" data-mode="edit">편집</button>' +
+      (x.srcId ? '' : '<button type="button" class="btn light sm" data-action="toggleVis" data-id="' + x.id + '">' + (x.visibility === 'public' ? '비공개로 전환' : '공개로 전환') + '</button>') +
+      '<button type="button" class="btn light sm" data-action="delCourse" data-id="' + x.id + '">삭제</button></div></div></div>';
   }
   /* 공개 범위 선택 (다른 사람의 코스를 담은 경우엔 표시하지 않음) */
   function visHTML(c) {
@@ -1147,6 +1110,7 @@
       .map((x) => Object.assign({}, x, { author: '나', mine: true, likes: 0 }));
     return state.shared.concat(mine).filter((x) => getStore(x.bookstoreId));
   }
+  /* 전체 코스: 책방 탐색처럼 서점 검색 아래에 필터 칩(지역 · 산책 포함 · 산책 시간 · 체류 시간) */
   const CF_GROUPS = [
     { key: 'region', label: '지역' }, { key: 'walk', label: '산책 포함' },
     { key: 'walkMin', label: '산책 시간' }, { key: 'readMin', label: '체류 시간' }
@@ -1165,6 +1129,7 @@
     if (f.readMins.length && !f.readMins.includes(x.readingMinutes)) return false;
     return true;
   }
+  /* 내 위치를 코스 지역 조건으로 미리 채워요. 그 지역에 맞는 코스가 하나도 없으면 빈 목록이 되지 않게 조건은 빼고 안내만 보여줘요 */
   function applyCoursePreset() {
     const a = me();
     state.cfPreset = null;
@@ -1177,6 +1142,7 @@
       state.cfPreset = { region: '', note: '내 위치(' + a.region + ')에 맞는 코스가 아직 없어 위치 조건은 빼고 보여드려요.' };
     }
   }
+  /* 적용 중인 조건을 칩으로 보여 주고 하나씩 해제할 수 있게 (책방 탐색의 '선택 조건'과 같은 모양) */
   function courseFilterChips() {
     const f = state.cf, chips = [];
     const add = (k, v, label) => chips.push('<span class="chip">' + esc(label) + ' <button type="button" class="x" data-action="cfRemove" data-k="' + k + '" data-v="' + esc(v) + '" aria-label="' + esc(label) + ' 해제">×</button></span>');
@@ -1189,10 +1155,12 @@
     const onlyRegion = f.regions.length === 1 && !f.q.trim() && f.walk === 'any' && !f.walkMins.length && !f.readMins.length;
     const note = pre && (pre.region ? onlyRegion && f.regions[0] === pre.region : !courseFilterCount() && pre.note)
       ? '<span class="muted preset-note">' + (pre.region ? '내 위치가 미리 적용돼 있어요.' : esc(pre.note)) + '</span>' : '';
+    // 선택된 조건이 없으면 회색 선택 조건 영역 자체를 렌더링하지 않는다.
     if (!chips.length) return '';
     return '<div class="selected"><span>선택 조건:</span>' + chips.join('') +
       '<button type="button" class="reset" data-action="cfReset">초기화</button>' + note + '</div>';
   }
+  /* 코스 화면 맨 위: 서점 검색 + 그 아래 필터 칩 (책방 탐색과 같은 구성) */
   function courseQuickHTML() {
     const f = state.cf;
     const on = { region: f.regions.length, walk: f.walk !== 'any' ? 1 : 0, walkMin: f.walk === 'no' ? 0 : f.walkMins.length, readMin: f.readMins.length };
@@ -1232,7 +1200,7 @@
       list.map((x) => {
         const taken = saved.some((c) => c.srcId === x.id);
         const acts = !me() ? '' : x.mine
-          ? visToggleHTML(x)
+          ? '<button type="button" class="btn light sm" data-action="toggleVis" data-id="' + x.id + '">비공개로 전환</button>'
           : '<button type="button" class="btn light sm" data-action="takeCourse" data-id="' + x.id + '" aria-pressed="' + taken + '"' + (taken ? ' title="다시 누르면 내 코스에서 빼요"' : '') + '>' + (taken ? '담음 ✓' : '내 코스로 담기') + '</button>' +
             '<button type="button" class="btn light sm" data-action="likeCourse" data-id="' + x.id + '" aria-pressed="' + liked.includes(x.id) + '" aria-label="좋아요">' + (liked.includes(x.id) ? '♥ ' : '♡ ') + cnt(x) + '</button>';
         return '<div class="card course-with-thumb">' + courseThumbHTML(x) + '<div class="course-card-content">' + courseTitleHTML(x) + (x.mine ? '<span class="badge on">내 코스</span>' : '') +
@@ -1241,6 +1209,7 @@
           '<div class="card-acts">' + acts + '</div></div></div>';
       }).join('');
   }
+  /* 필터 시트: 책방 탐색처럼 항목(지역 · 산책 포함 · 산책 시간 · 체류 시간)마다 하나씩 */
   function openCF(key) {
     const f = state.cf;
     const opt = (type, name, val, label, checked, disabled) =>
@@ -1359,6 +1328,8 @@
     if (it.kind === 'walk') return '산책 ' + Math.round(st.walkTotal / st.walkCount) + '분';
     return '휴식 · 선택 가능';
   }
+  /* 코스 지도: 책방 상세와 같은 Leaflet + OpenStreetMap(API 키 불필요)으로 호출해요.
+     코스 순서대로 번호 마커를 찍고 점선으로 이어요. 번호는 아래 '코스 요약' 번호와 같아요. */
   let courseMap = null;
   function disposeCourseMap() {
     if (!courseMap) return;
@@ -1377,6 +1348,7 @@
       if (slot.isConnected && !slot.classList.contains('is-live')) slot.innerHTML = '<span>지도를 불러오지 못했어요</span><small>인터넷 연결을 확인한 뒤 다시 열어 주세요</small>';
     };
     loadLeaflet().then((L) => {
+      /* 불러오는 사이 다른 화면으로 넘어갔거나 화면이 다시 그려졌다면 그리지 않아요 */
       if (!slot.isConnected || current !== 'map') return;
       disposeCourseMap();
       slot.innerHTML = '';
@@ -1400,6 +1372,10 @@
       else courseMap.fitBounds(L.latLngBounds(latlngs), { padding: [32, 32], maxZoom: 16 });
     }).catch(() => { disposeCourseMap(); slot.classList.remove('is-live'); showError(); });
   }
+  /* 하단 저장 버튼: 코스 종류에 따라 달라져요 (맨 위가 주 버튼, 지도 화면에선 '코스 편집'이 저장 아래)
+     - 새 코스: 현재 코스 저장
+     - 내가 만든 코스: 저장하기(덮어쓰기) · 새 코스로 저장하기
+     - 공유 코스: 새 코스로 저장하기만 (원본은 그대로 두고 내 코스로 새로 만들어요) */
   function saveButtonsHTML(c, withEdit) {
     const k = courseKind(c);
     const btn = (action, label, light) => '<button type="button" class="btn' + (light ? ' light' : '') + '" data-action="' + action + '">' + label + '</button>';
@@ -1410,6 +1386,7 @@
     if (withEdit) html += btn('editCourse', '코스 편집', true);
     return '<div class="sticky">' + html + '</div>';
   }
+  /* 전체 코스에서 다른 사람의 코스를 열어 볼 때: 코스 담기(다시 누르면 취소) · 후기 작성 */
   function sharedViewButtonsHTML(c) {
     const taken = db.get(KEY.courses, []).some((x) => x.srcId === c.srcId);
     const takeBtn = '<button type="button" class="btn" data-action="takeCourse" data-id="' + esc(c.srcId) + '" aria-pressed="' + taken + '"' +
@@ -1420,6 +1397,7 @@
         : '<button type="button" class="btn light" data-action="reviewFor" data-id="' + esc(c.storeId) + '" data-course="' + esc(c.srcId) + '">후기 작성</button>';
     return '<div class="sticky"><div class="btn-row">' + takeBtn + reviewBtn + '</div></div>';
   }
+  /* 저장한 코스를 눌러 열었을 때(코스 소개): 코스 편집 · 후기 작성 — 편집·저장은 '코스 편집'을 눌러야 나와요 */
   function savedViewButtonsHTML(c) {
     const reviewBtn = !getStore(c.storeId) ? ''
       : hasReview(c.storeId)
@@ -1427,6 +1405,7 @@
         : '<button type="button" class="btn light" data-action="reviewFor" data-id="' + esc(c.storeId) + '" data-course="' + esc(c.id) + '">후기 작성</button>';
     return '<div class="sticky"><div class="btn-row"><button type="button" class="btn" data-action="editCourse">코스 편집</button>' + reviewBtn + '</div></div>';
   }
+  /* 코스 제목을 눌러 열었을 때: 맨 위에 코스 제목과 만든 사람 닉네임 (새로 만드는 중인 코스에는 표시하지 않아요) */
   function courseHeadHTML(c) {
     if (!c.id && !c.srcId) return '';
     const maker = c.srcId ? c.from : (me() ? me().nickname : '나');
@@ -1438,6 +1417,7 @@
     const box = $('#mapBody');
     if (!needReady(box)) return;
     const c = state.course;
+    /* 코스 소개 화면: 다른 사람의 코스(코스 담기·후기 작성) · 내가 저장한 코스(코스 편집·후기 작성) — 하단 버튼을 하단 메뉴 바로 위에 고정 */
     const savedView = !!(c.id && c.view);
     $('[data-screen="map"]').classList.toggle('shared-view', savedView || !!(c.srcId && !c.id));
     if (!getStore(c.storeId)) { box.innerHTML = '<div class="state"><p>코스를 만들 책방을 먼저 선택해 주세요.</p><button type="button" class="btn" data-nav="course-new">코스 만들기</button></div>'; return; }
@@ -1455,6 +1435,7 @@
     $('[data-screen="map"]').classList.add('has-sticky');
     mountCourseMap(st.items);
   }
+  /* 저장했거나 따라가 보는 코스에서: 다녀왔다면 바로 후기로 */
   function mapReviewHTML(c) {
     if ((!c.id && !c.srcId) || !getStore(c.storeId) || hasReview(c.storeId)) return '';
     if (!me()) return '';
@@ -1483,11 +1464,16 @@
       saveButtonsHTML(c, false);
     $('[data-screen="edit"]').classList.add('has-sticky');
   }
+  /* 코스 저장
+     - 기본: 새 코스는 추가하고, 내가 만든 코스는 덮어써요 (Ctrl+S)
+     - opts.asNew: 항상 새 코스로 따로 저장해요 (Ctrl+Shift+S) — 이름·공개 여부는 opts로 받아요.
+       새 코스에는 원본 작성자 표시(srcId·from)를 붙이지 않아서 '공개/비공개' 코스로 보여요. */
   function saveCourse(opts) {
     opts = opts || {};
     const c = state.course;
     const s = getStore(c.storeId);
     if (!s || !c.order.length) return;
+    /* 공유 코스는 덮어쓰지 않고 항상 새 코스로 저장 */
     if (courseKind(c) === 'shared' && !opts.asNew) { openSaveAsSheet(); return; }
     if (!requireMember()) return;
     const all = db.get(KEY.courses, []);
@@ -1510,6 +1496,7 @@
     const i = all.findIndex((x) => x.id === rec.id);
     if (i >= 0) all[i] = rec; else all.push(rec);
     db.set(KEY.courses, all);
+    /* 저장한 코스가 지금 코스가 돼요 — 저장 후 뒤로 가도 '내 코스' 버튼(저장하기·새 코스로 저장하기)이 보여요 */
     c.id = rec.id;
     c.title = rec.title;
     c.visibility = rec.visibility;
@@ -1518,10 +1505,12 @@
     state.lastCourseVis = rec.visibility;
     go('done-course');
   }
+  /* 저장한 코스를 고쳐서 새 코스로 저장할 때 이름을 그대로 두면 원래 코스와 헷갈리니까 '기존 코스 이름 수정'으로 */
   function copyTitle(c) {
     const base = String(c.title || '').trim() || defaultCourseTitle(c);
     return base.slice(0, COURSE_TITLE_MAX - 3) + ' 수정';
   }
+  /* '새 코스로 저장하기': 코스 이름과 공개 여부를 고른 뒤 새 코스로 저장 */
   function openSaveAsSheet() {
     const c = state.course;
     if (!getStore(c.storeId) || !c.order.length) return;
@@ -1598,6 +1587,7 @@
     if (!p.category.length && !p.mood.length && !p.facility.length) { toast('하나 이상 선택해 주세요.'); return; }
     if (!currentUser) { toast('취향 저장은 로그인 후 이용할 수 있어요.'); go('auth'); return; }
     setPrefs(p);
+    /* 저장하면 홈으로 — 눌렀던 자리(내 취향 맞춤 추천)로 스크롤을 되돌려서 바뀐 추천을 바로 볼 수 있어요 */
     go('home', { reset: true, restore: true });
     toast('취향을 저장했어요.');
   }
@@ -1621,13 +1611,14 @@
         '<label class="chk"><input type="checkbox" name="' + d[2] + '" value="' + esc(o) + '"' + (p[d[1]].includes(o) ? ' checked' : '') + '><span>' + esc(o) + '</span></label>').join('') + '</div>';
     }).join('');
   }
+  /* 닉네임 · 위치 · 취향 입력칸 (회원가입 2단계와 내 정보 설정에서 같이 써요) */
   function profileFieldsHTML(pre, a) {
     a = a || { nickname: '', region: '', prefs: null };
     return '<label class="fld-label" for="' + pre + 'Nick">닉네임</label>' +
       '<input class="fld" id="' + pre + 'Nick" name="nickname" maxlength="' + NICK_MAX + '" autocomplete="nickname" required placeholder="2~' + NICK_MAX + '자" value="' + esc(a.nickname) + '">' +
       '<label class="fld-label" for="' + pre + 'Region">위치</label>' + regionSelectHTML(pre + 'Region', a.region) +
       tasteFieldsHTML(normPrefs(a.prefs)) +
-      '<p class="para">설정한 위치·취향은 내 정보 설정과 취향 추천에서 언제든 바꿀 수 있어요.</p>';
+      '<p class="para">위치·취향은 책방 탐색에 미리 적용돼요. 맞는 책방이 없는 조건은 자동으로 빼고 보여드려요.</p>';
   }
   function readProfileForm(form) {
     const vals = (n) => Array.from(form.querySelectorAll('input[name="' + n + '"]:checked')).map((i) => i.value);
@@ -1665,6 +1656,7 @@
   }
 
   /* ---------- 더보기 메뉴 ---------- */
+  /* 저장된 값이 없으면(자동) 시스템 설정을 따르므로, 지금 실제로 적용 중인 모드를 돌려줘요 */
   function effectiveTheme() {
     const t = settings().theme;
     if (t === 'light' || t === 'dark') return t;
@@ -1792,6 +1784,7 @@
       if (v !== 'light' && v !== 'dark') return;
       db.set(KEY.settings, Object.assign(settings(), { theme: v }));
       applySettings(); refreshMenu();
+      /* 메뉴를 다시 그리면 포커스가 사라지므로 방금 누른 버튼으로 되돌려 둠 */
       const b = $('#sheetBody [data-action="setTheme"][data-v="' + v + '"]');
       if (b) b.focus();
     },
@@ -1830,29 +1823,11 @@
       });
     },
     quickTopic(el) {
-      state.query = ''; state.visible = PAGE; state.filterOpen = false;
+      state.query = ''; state.visible = PAGE;
       const quickMap = { '혼자 가기': { key: 'facility', value: '혼자 가기' }, '좌석': { key: 'facility', value: '좌석' } };
       const filter = quickMap[el.dataset.value] || { key: el.dataset.key, value: el.dataset.value };
       state.applied = [filter];
       go('list');
-    },
-    toggleFilterDrawer() {
-      state.filterOpen = !state.filterOpen;
-      renderList();
-    },
-    toggleListFilter(el) {
-      const key = el.dataset.key, val = el.dataset.value;
-      const idx = state.applied.findIndex((a) => a.key === key && a.value === val);
-      if (idx >= 0) state.applied.splice(idx, 1);
-      else state.applied.push({ key: key, value: val });
-      state.visible = PAGE;
-      renderList();
-    },
-    applySavedPrefs() {
-      applyPreset();
-      state.visible = PAGE;
-      renderList();
-      toast(state.preset && state.preset.note ? state.preset.note : '내 취향 조건을 적용했어요.');
     },
     openFilter(el) { openFilter(el.dataset.key); },
     applyFilter(el) {
@@ -1873,12 +1848,14 @@
     loadMore() { state.visible += PAGE; renderList(); },
     openDetail(el) { closeSheet(); showDetail(el.dataset.id); },
     openReviews() { state.reviewStoreId = state.currentId; state.reviewCtx = null; go('reviews'); },
+    /* 책방 상세의 '책방 정보 / 줄글 후기' 탭 전환 — 다시 그린 뒤에도 키보드 포커스는 누른 탭에 둬요 */
     detailTab(el) {
       state.dtab = el.dataset.tab === 'comments' ? 'comments' : 'info';
       renderDetail();
       const b = $('#detailBody [role="tab"][data-tab="' + state.dtab + '"]');
       if (b) b.focus();
     },
+    /* 어디서든 특정 책방(+다녀온 코스)의 후기 작성으로 */
     reviewFor(el) {
       const id = el.dataset.id;
       if (!getStore(id)) return;
@@ -1950,6 +1927,7 @@
       const all = db.get(KEY.courses, []);
       const had = all.findIndex((c) => c.srcId === x.id);
       if (had >= 0) {
+        /* 이미 담은 코스를 다시 누르면 내 코스에서 빼요 */
         all.splice(had, 1);
         db.set(KEY.courses, all);
         current === 'map' ? renderMap() : renderCourseHub();
@@ -1995,6 +1973,7 @@
       });
     },
     openCourse(el) {
+      /* 내 저장 코스 → 없으면 다른 사용자가 공유한 코스(사본으로 열림) */
       const own = db.get(KEY.courses, []).find((c) => c.id === el.dataset.id);
       const x = own || state.shared.find((c) => c.id === el.dataset.id);
       if (!x) return;
@@ -2003,7 +1982,7 @@
         readingMinutes: x.readingMinutes, order: x.order.slice(),
         visibility: own && x.visibility === 'public' ? 'public' : 'private',
         srcId: own ? x.srcId : x.id, from: own ? x.from : x.author,
-        view: !!own && el.dataset.mode !== 'edit'
+        view: !!own && el.dataset.mode !== 'edit' /* 저장한 코스를 눌러 연 경우: 먼저 코스 소개 화면 */
       };
       go(el.dataset.mode === 'edit' ? 'edit' : 'map');
     },
@@ -2016,6 +1995,7 @@
     },
     pickStore: pickStoreSheet,
     chooseStore(el) {
+      /* 책방을 바꿔도 먼저 적어 둔 코스 이름은 유지 */
       const title = state.course.title;
       state.course = blankCourse(el.dataset.id);
       state.course.title = title;
@@ -2066,12 +2046,13 @@
   });
   $('#homeSearch').addEventListener('submit', (e) => {
     e.preventDefault();
-    state.query = $('#homeQuery').value; state.applied = []; state.visible = PAGE; state.filterOpen = false;
+    state.query = $('#homeQuery').value; state.applied = []; state.visible = PAGE;
     go('list');
   });
   $('#listQuery').addEventListener('input', (e) => { state.query = e.target.value; state.visible = PAGE; renderList(); });
   $('#sortSelect').addEventListener('change', (e) => { state.sort = e.target.value; renderList(); });
   $('#importFile').addEventListener('change', (e) => { const f = e.target.files[0]; e.target.value = ''; importFile(f); });
+  /* 방문 메모는 입력 후 바깥을 누르면 자동 저장 */
   document.addEventListener('change', (e) => {
     if (!e.target.matches('.memo')) return;
     const card = e.target.closest('.card');
@@ -2082,11 +2063,7 @@
   document.addEventListener('input', (e) => {
     if (e.target.id === 'courseQuery') { state.cf.q = e.target.value; refreshCourseList(); return; }
     if (e.target.id === 'courseTitle') state.course.title = e.target.value;
-    if (e.target.id === 'reviewComment') {
-      $('#rcount').textContent = e.target.value.length + '/80';
-      const cerr = $('#rcommentErr');
-      if (cerr && e.target.value.trim()) cerr.hidden = true;
-    }
+    if (e.target.id === 'reviewComment') $('#rcount').textContent = e.target.value.length + '/80';
     if (e.target.id === 'reviewSearchQ') $('#reviewSearchList').innerHTML = reviewStoreListHTML(e.target.value);
   });
   document.addEventListener('submit', async (e) => {
@@ -2136,6 +2113,7 @@
     }
     if (e.target.id === 'reviewForm') { e.preventDefault(); submitReview(); }
   });
+  /* 지역 목록: 시·도를 누르면 아래 시·군·구가 모두 선택·해제되고, 시·군·구를 바꾸면 시·도 선택도 맞춰져요 */
   document.addEventListener('change', (e) => {
     const t = e.target;
     if (!t.dataset || !t.dataset.role || !t.closest('#sheetBody')) return;
@@ -2144,9 +2122,11 @@
     if (t.dataset.role === 'parent') kids.forEach((i) => { i.checked = t.checked; });
     else if (par) par.checked = kids.every((i) => i.checked);
   });
+  /* 코스 화면의 정렬(이름순·인기순·최신순): 고르면 바로 목록에 반영 */
   document.addEventListener('change', (e) => {
     if (e.target.id === 'courseSort') { state.psort = e.target.value === 'name' ? '' : e.target.value; refreshCourseList(); }
   });
+  /* 코스 필터: '산책 포함하지 않음'을 고르면 산책 시간 선택은 잠가요 */
   document.addEventListener('change', (e) => {
     if (e.target.name === 'rtag') { syncReviewGroups(); return; }
     if (e.target.name === 'cf-sort' && e.target.checked) {
@@ -2158,6 +2138,8 @@
     $$('input[name="cf-walkmin"]').forEach((i) => { i.disabled = off; if (off) i.checked = false; });
   });
 
+  /* 추천 책방: 터치 스와이프뿐 아니라 마우스 휠의 세로 스크롤도 가로 이동으로 변환.
+     가로로 더 이동할 수 없으면 페이지 세로 스크롤을 그대로 허용합니다. */
   document.addEventListener('wheel', (e) => {
     const rail = e.target.closest && e.target.closest('.home-pick-grid');
     if (!rail || e.ctrlKey || e.metaKey) return;
