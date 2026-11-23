@@ -5,9 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>책방틈</title>
   <link rel="icon" href="asset/favicon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/style.css?v=20261123">
   <script>
-    /* 저장된 화면 설정(글자 크기·다크 모드)을 깜빡임 없이 먼저 적용 */
     try {
       var s = JSON.parse(localStorage.getItem('bookstore.settings') || '{}');
       if (s.fs) document.documentElement.setAttribute('data-fs', s.fs);
@@ -19,12 +18,12 @@
   <div class="app" id="app">
     <header class="apphead">
       <button type="button" class="header-brand brand-home" data-action="goHome" aria-label="홈으로 이동"><img class="brand-logo" src="asset/bookbangteum-logo.png" alt=""><strong id="pageTitle">책방틈</strong></button>
-      <div class="head-actions"><button type="button" class="header-login-icon" id="headerLogin" data-action="headerAccount" aria-label="로그인" title="로그인"><svg viewBox="0 0 24 24" width="23" height="23" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.5-7 8-7s8 3 8 7"/></svg></button><div class="account-menu" id="accountMenu" role="menu" aria-label="계정 메뉴" hidden></div><button type="button" class="icon-btn hamburger-btn" data-action="openMenu" aria-label="메뉴" aria-haspopup="dialog"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button></div>
+      <div class="head-actions"><button type="button" class="header-login-icon" id="headerLogin" data-action="headerAccount" aria-label="로그인" title="로그인"><svg viewBox="0 0 24 24" width="23" height="23" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.5-7 8-7s8 3 8 7"/></svg></button><div class="account-menu" id="accountMenu" role="menu" aria-label="계정 메뉴" hidden></div><button type="button" class="icon-btn hamburger-btn" data-action="openMenu" aria-label="메뉴" aria-haspopup="dialog"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button></div>
     </header>
 
     <main class="screens" id="screens">
 
-      <!-- 01 홈: 브랜드 소개 → 탐색 → 추천 → 새소식 → 개인화 -->
+      <!-- 01 홈: 브랜드 소개 → 탐색 → 추천 → 새소식 -->
       <section class="screen home-screen" data-screen="home" hidden>
         <div class="home-hero">
           <div class="home-hero-content">
@@ -50,21 +49,27 @@
         <div class="search">
           <input type="search" id="listQuery" placeholder="마포구, 책방 이름 검색" aria-label="책방 검색" autocomplete="off">
         </div>
-        <div class="chips" id="filterChips"></div>
-        <div class="selected" id="selectedBox"></div>
+        <div class="filter-drawer">
+          <button type="button" class="filter-drawer-toggle" id="filterDrawerToggle" data-action="toggleFilterDrawer" aria-expanded="false" aria-controls="allConditionsPanel">
+            <span>전체 조건</span>
+            <span class="filter-drawer-right" id="filterDrawerMeta">펼치기 ▾</span>
+          </button>
+          <div class="filter-drawer-panel" id="allConditionsPanel" hidden></div>
+        </div>
         <div class="rowline">
           <b id="resultMeta">검색 결과</b>
-          <label class="sort">정렬: </div>
+          <label class="sort">정렬:
             <select id="sortSelect" aria-label="정렬">
               <option value="name">이름순</option>
               <option value="reviews">후기 많은순</option>
             </select>
           </label>
+        </div>
         <div id="listBody"></div>
         <button type="button" class="more" id="moreBtn" data-action="loadMore" hidden>목록 더 보기 ↓</button>
       </section>
 
-      <!-- 03 책방 상세 (책방 정보 · 후기 탭) -->
+      <!-- 03 책방 상세 -->
       <section class="screen" data-screen="detail" hidden>
         <div id="detailBody"></div>
       </section>
@@ -84,7 +89,7 @@
         <div id="myBody"></div>
       </section>
 
-      <!-- 로그인 / 회원가입 1단계 (이메일·비밀번호) -->
+      <!-- 로그인 / 회원가입 1단계 -->
       <section class="screen" data-screen="auth" hidden>
         <div class="auth-panel">
           <h2>로그인 / 회원가입</h2>
@@ -100,17 +105,17 @@
         </div>
       </section>
 
-      <!-- 회원가입 2단계: 닉네임·위치·취향 -->
+      <!-- 회원가입 2단계 -->
       <section class="screen" data-screen="signup" hidden>
         <div id="signupBody"></div>
       </section>
 
-      <!-- 내 정보 설정: 닉네임·위치·취향 수정, 로그아웃, 회원 탈퇴 -->
+      <!-- 내 정보 설정 -->
       <section class="screen" data-screen="profile" hidden>
         <div id="profileBody"></div>
       </section>
 
-      <!-- 코스 허브: 전체 코스 · 저장한 코스 -->
+      <!-- 코스 허브 -->
       <section class="screen" data-screen="course" hidden>
         <div id="courseBody"></div>
       </section>
