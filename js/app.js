@@ -134,14 +134,14 @@
     if (first) first.focus();
   }
 
-  const TITLES = {
+const TITLES = {
     auth: '로그인 / 회원가입', home: '책방틈', list: '책방 탐색', detail: '책방 상세', reviews: '후기 작성',
     my: '마이페이지', course: '코스', 'course-setup': '코스 만들기', map: '지도·코스 결과', edit: '코스 편집',
-    taste: '나의 취향', 'done-course': '저장 완료', signup: '프로필 설정', profile: '내 정보 설정'
+    taste: '나의 취향', signup: '프로필 설정', profile: '내 정보 설정'
   };
   const NAV_OF = {
     auth: 'home', home: 'home', taste: 'home', list: 'list', detail: 'list', reviews: 'list',
-    course: 'course', 'course-setup': 'course', map: 'course', edit: 'course', 'done-course': 'course', my: 'my', signup: 'home', profile: 'home'
+    course: 'course', 'course-setup': 'course', map: 'course', edit: 'course', my: 'my', signup: 'home', profile: 'home'
   };
   const MOOD_FILTERS = ['조용함', '아늑함', '활기참', '감성적', '깔끔함'];
   const FACILITY_FILTERS = ['좌석', '음료', '콘센트', '오래 머물기', '혼자 가기'];
@@ -399,11 +399,10 @@
     const prev = hist.pop() || 'home';
     go(prev, { push: false, restore: true });
   }
-  function renderScreen(name) {
+function renderScreen(name) {
     ({
       auth: () => {}, signup: renderSignup, profile: renderProfile, home: renderHome, list: renderList, detail: renderDetail, reviews: renderReviews, my: renderMy,
-      course: renderCourseHub, 'course-setup': renderSetup, map: renderMap, edit: renderEdit, taste: renderTaste,
-      'done-course': renderDoneCourse
+      course: renderCourseHub, 'course-setup': renderSetup, map: renderMap, edit: renderEdit, taste: renderTaste
     }[name] || (() => {}))();
   }
   function navTo(name) {
@@ -425,13 +424,13 @@
       go('course-setup');
     } else {
       if (name === 'list') {
-        /* 책방 탐색 진입 시 전체 조건이 기본으로 나오며 필터 패널은 닫혀 있음 */
-        state.query = ''; state.visible = PAGE; state.applied = []; state.preset = null; state.presetPending = false; state.filterOpen = false;
+        state.query = ''; state.visible = PAGE; state.applied = []; state.preset = null; state.presetPending = false;
       }
       go(name, { reset: true });
     }
   }
 
+  
   /* ---------- 목록 ---------- */
   function filterOptions(key) {
     if (key === 'mood') return MOOD_FILTERS.slice();
@@ -546,6 +545,7 @@
       (noHeart ? '' : '<button type="button" class="heart" data-action="cardFav" data-id="' + s.id + '" aria-pressed="' + fav + '" aria-label="' + esc(s.title) + ' 즐겨찾기">' + (fav ? '★' : '☆') + '</button>') +
       '</div>';
   }
+  
   function renderList() {
     const input = $('#listQuery');
     if (document.activeElement !== input) input.value = state.query;
