@@ -542,3 +542,12 @@ label.section{display:block}
 .vis-toggle[aria-checked="true"] .vis-toggle-track{background:var(--dark)}
 .vis-toggle-thumb{position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:var(--paper);transition:transform .2s ease}
 .vis-toggle[aria-checked="true"] .vis-toggle-thumb{transform:translateX(14px)}
+
+/* 코스 카드(전체 코스 · 저장한 코스): 작성자 · 메타 · 경로 · 설명 가독성 구분 */
+.course-list-head{display:flex;align-items:center;flex-wrap:wrap;gap:4px}
+.course-list-head .badge{margin-left:2px}
+.course-meta{display:flex;flex-wrap:wrap;align-items:center;gap:5px;margin-top:5px;font-size:.82rem;color:var(--muted);line-height:1.4}
+.course-author{font-weight:700;color:var(--ink)}
+.course-sep{opacity:.45}
+.course-route{margin-top:6px;padding-top:6px;border-top:1px solid var(--subtle);font-size:.85rem;color:var(--ink);line-height:1.45;word-break:keep-all}
+.course-desc{margin-top:5px;font-size:.8rem;color:var(--muted);line-height:1.45;word-break:keep-all}
