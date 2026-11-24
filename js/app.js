@@ -1153,7 +1153,9 @@ function renderScreen(name) {
       '<button type="button" class="icon-act-btn" data-action="openCourse" data-id="' + x.id + '" data-mode="edit" aria-label="코스 편집" title="편집">' + ICON_EDIT_SVG + '</button>' +
       '<button type="button" class="icon-act-btn is-danger" data-action="delCourse" data-id="' + x.id + '" aria-label="코스 삭제" title="삭제">' + ICON_DEL_SVG + '</button>' +
       '</div></div>' +
-      '<p class="para">' + courseMeta(x) + '<br>' + esc(routeText(x)) + '<br><span class="muted">' + esc(x.createdAt) + ' 저장</span></p>' +
+      '<div class="course-meta">' + (x.from ? '<span class="course-author">' + esc(x.from) + '님</span><span class="course-sep" aria-hidden="true">|</span>' : '') + '<span>' + courseMeta(x) + '</span></div>' +
+      '<div class="course-route">' + esc(routeText(x)) + '</div>' +
+      '<div class="course-desc">' + esc(x.createdAt) + ' 저장</div>' +
       '<div class="card-acts">' + reviewBtn + visToggle + '</div></div></div>';
   }
   /* 공개 범위 선택 (다른 사람의 코스를 담은 경우엔 표시하지 않음) */
@@ -1264,10 +1266,12 @@ function renderScreen(name) {
           ? '<button type="button" class="btn light sm" data-action="toggleVis" data-id="' + x.id + '">비공개로 전환</button>'
           : '<button type="button" class="btn light sm" data-action="takeCourse" data-id="' + x.id + '" aria-pressed="' + taken + '"' + (taken ? ' title="다시 누르면 내 코스에서 빼요"' : '') + '>' + (taken ? '담음 ✓' : '내 코스로 담기') + '</button>' +
             '<button type="button" class="btn light sm" data-action="likeCourse" data-id="' + x.id + '" aria-pressed="' + liked.includes(x.id) + '" aria-label="좋아요">' + (liked.includes(x.id) ? '♥ ' : '♡ ') + cnt(x) + '</button>';
-        return '<div class="card course-with-thumb">' + courseThumbHTML(x) + '<div class="course-card-content">' + courseTitleHTML(x) + (x.mine ? '<span class="badge on">내 코스</span>' : '') +
-          '<p class="para">' + esc(x.author) + '님 · ' + courseMeta(x) + '<br>' + esc(routeText(x)) +
-          (x.desc ? '<br><span class="muted">' + esc(x.desc) + '</span>' : '') + '</p>' +
-          '<div class="card-acts">' + acts + '</div></div></div>';
+        return '<div class="card course-with-thumb">' + courseThumbHTML(x) + '<div class="course-card-content">' +
+          '<div class="course-list-head">' + courseTitleHTML(x) + (x.mine ? '<span class="badge on">내 코스</span>' : '') + '</div>' +
+          '<div class="course-meta"><span class="course-author">' + esc(x.author) + '님</span><span class="course-sep" aria-hidden="true">|</span><span>' + courseMeta(x) + '</span></div>' +
+          '<div class="course-route">' + esc(routeText(x)) + '</div>' +
+          (x.desc ? '<div class="course-desc">' + esc(x.desc) + '</div>' : '') +
+          (acts ? '<div class="card-acts">' + acts + '</div>' : '') + '</div></div>';
       }).join('');
   }
   /* 필터 시트: 책방 탐색처럼 항목(지역 · 산책 포함 · 산책 시간 · 체류 시간)마다 하나씩 */
