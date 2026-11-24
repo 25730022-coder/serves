@@ -51,11 +51,11 @@
           <input type="search" id="listQuery" placeholder="마포구, 책방 이름 검색" aria-label="책방 검색" autocomplete="off">
         </div>
         <div class="chips" id="filterChips"></div>
-        <div class="selected" id="selectedBox"></div>
+        <div class="selected" id="selectedBox" hidden></div>
         <div class="rowline">
           <b id="resultMeta">검색 결과</b>
-          <label class="sort">정렬:
-            <select id="sortSelect" aria-label="정렬">
+          <label class="sort" for="sortSelect">정렬:
+            <select id="sortSelect">
               <option value="name">이름순</option>
               <option value="reviews">후기 많은순</option>
             </select>
@@ -147,7 +147,7 @@
     </nav>
 
     <div class="sheet-wrap" id="sheetWrap" hidden>
-      <div class="backdrop" data-action="closeSheet"></div>
+      <div class="backdrop" data-action="closeSheet" aria-hidden="true"></div>
       <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle" tabindex="-1">
         <div class="sheet-head">
           <strong id="sheetTitle"></strong>
