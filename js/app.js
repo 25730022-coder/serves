@@ -1264,10 +1264,12 @@ function renderScreen(name) {
           ? '<button type="button" class="btn light sm" data-action="toggleVis" data-id="' + x.id + '">비공개로 전환</button>'
           : '<button type="button" class="btn light sm" data-action="takeCourse" data-id="' + x.id + '" aria-pressed="' + taken + '"' + (taken ? ' title="다시 누르면 내 코스에서 빼요"' : '') + '>' + (taken ? '담음 ✓' : '내 코스로 담기') + '</button>' +
             '<button type="button" class="btn light sm" data-action="likeCourse" data-id="' + x.id + '" aria-pressed="' + liked.includes(x.id) + '" aria-label="좋아요">' + (liked.includes(x.id) ? '♥ ' : '♡ ') + cnt(x) + '</button>';
-        return '<div class="card course-with-thumb">' + courseThumbHTML(x) + '<div class="course-card-content">' + courseTitleHTML(x) + (x.mine ? '<span class="badge on">내 코스</span>' : '') +
-          '<p class="para">' + esc(x.author) + '님 · ' + courseMeta(x) + '<br>' + esc(routeText(x)) +
-          (x.desc ? '<br><span class="muted">' + esc(x.desc) + '</span>' : '') + '</p>' +
-          '<div class="card-acts">' + acts + '</div></div></div>';
+        return '<div class="card course-with-thumb">' + courseThumbHTML(x) + '<div class="course-card-content">' +
+          '<div class="home-course-top">' + courseTitleHTML(x) + (x.mine ? '<span class="badge on">내 코스</span>' : '') + '</div>' +
+          '<div class="home-course-meta"><span class="home-course-author">' + esc(x.author) + '님</span><span class="home-course-sep" aria-hidden="true">|</span><span>' + courseMeta(x) + '</span></div>' +
+          '<div class="home-course-route">' + esc(routeText(x)) + '</div>' +
+          (x.desc ? '<div class="home-course-desc">' + esc(x.desc) + '</div>' : '') +
+          (acts ? '<div class="card-acts">' + acts + '</div>' : '') + '</div></div>';
       }).join('');
   }
   /* 필터 시트: 책방 탐색처럼 항목(지역 · 산책 포함 · 산책 시간 · 체류 시간)마다 하나씩 */
