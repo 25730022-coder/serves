@@ -859,16 +859,82 @@ function renderScreen(name) {
   }
   function startHomeAutoSwipe() {
     stopHomeAutoSwipe();
-    if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
     const rail = $('#homeDiscovery .home-pick-grid');
     if (!rail) return;
 
-    rail.addEventListener('pointerdown', () => pauseHomeAutoSwipe(3000), { passive: true });
+    let dragging = false;
+    let dragged = false;
+    let suppressClick = false;
+    let startX = 0;
+    let startScroll = 0;
+    let lastX = 0;
+    let lastTime = 0;
+    let vx = 0;
+
+    rail.addEventListener('pointerdown', (e) => {
+      pauseHomeAutoSwipe(3000);
+      if (e.pointerType !== 'mouse' || e.button !== 0) return;
+      dragging = true;
+      dragged = false;
+      startX = lastX = e.clientX;
+      lastTime = performance.now();
+      vx = 0;
+      startScroll = rail.scrollLeft;
+    });
+    rail.addEventListener('pointermove', (e) => {
+      if (!dragging) return;
+      const now = performance.now();
+      const dx = e.clientX - startX;
+      if (!dragged && Math.abs(dx) > 5) {
+        dragged = true;
+        rail.classList.add('is-dragging');
+        if (rail.setPointerCapture) {
+          try { rail.setPointerCapture(e.pointerId); } catch (err) {}
+        }
+      }
+      if (dragged) {
+        const dt = now - lastTime;
+        if (dt > 0) vx = (e.clientX - lastX) / dt;
+        lastX = e.clientX;
+        lastTime = now;
+        rail.scrollLeft = startScroll - dx;
+      }
+    });
+    const endDrag = (e) => {
+      if (!dragging) return;
+      dragging = false;
+      rail.classList.remove('is-dragging');
+      if (e && rail.hasPointerCapture && rail.hasPointerCapture(e.pointerId)) {
+        try { rail.releasePointerCapture(e.pointerId); } catch (err) {}
+      }
+      if (dragged) {
+        suppressClick = true;
+        setTimeout(() => { suppressClick = false; }, 0);
+        const card = rail.querySelector('.home-pick-card');
+        const step = card ? card.offsetWidth + 10 : Math.floor(rail.clientWidth / 2.5);
+        const max = rail.scrollWidth - rail.clientWidth;
+        const momentum = Math.max(-step * 1.5, Math.min(step * 1.5, -vx * 180));
+        const target = Math.max(0, Math.min(max, Math.round((rail.scrollLeft + momentum) / step) * step));
+        rail.scrollTo({ left: target, behavior: 'smooth' });
+      }
+    };
+    rail.addEventListener('pointerup', endDrag);
+    rail.addEventListener('pointercancel', endDrag);
+    rail.addEventListener('click', (e) => {
+      if (suppressClick) {
+        e.preventDefault();
+        e.stopPropagation();
+        suppressClick = false;
+      }
+    }, true);
+
     rail.addEventListener('touchstart', () => pauseHomeAutoSwipe(3000), { passive: true });
     rail.addEventListener('mouseenter', () => { homeSwipePaused = true; });
     rail.addEventListener('mouseleave', () => pauseHomeAutoSwipe(1200));
     rail.addEventListener('focusin', () => { homeSwipePaused = true; });
     rail.addEventListener('focusout', () => pauseHomeAutoSwipe(1200));
+
+    if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
 
     homeAutoSwipeTimer = setInterval(() => {
       if (current !== 'home' || homeSwipePaused || document.hidden) return;
@@ -877,7 +943,7 @@ function renderScreen(name) {
       const max = r.scrollWidth - r.clientWidth;
       if (max <= 2) return;
       const card = r.querySelector('.home-pick-card');
-      const step = card ? card.offsetWidth + 10 : Math.floor(r.clientWidth / 2);
+      const step = card ? card.offsetWidth + 10 : Math.floor(r.clientWidth / 2.5);
       if (r.scrollLeft >= max - 4) {
         r.scrollTo({ left: 0, behavior: 'smooth' });
       } else {
@@ -2212,131 +2278,113 @@ function renderScreen(name) {
     if (!PW_RE.test(pw)) { toast('비밀번호는 영문과 숫자를 포함해 8자 이상 입력해 주세요.'); form.password.focus(); return; }
     if (mode === 'login') {
       const { error } = await supa.auth.signInWithPassword({ email: id, password: pw });
-      if (error) { toast(error.message === 'Invalid login credentials' ? '이메일 또는 비밀번호가 올바르지 않아요.' : error.message); form.password.focus(); return; }
+      if (error) { toast(error.message === 'Invalid login credentials' ? '이메일 또는 비밀번호가 올바르지 않아요.' : error.message); return; }
       form.reset();
       toast('로그인했어요.');
       return;
     }
-    state.signup = { id, pw };
+    state.signup = { id: id, password: pw };
     go('signup');
   });
-  document.addEventListener('submit', async (e) => {
-    if (e.target.id === 'signupForm') {
-      e.preventDefault();
-      if (!state.signup) return;
-      const v = readProfileForm(e.target);
-      const err = nickError(v.nickname);
-      if (err) { toast(err); e.target.nickname.focus(); return; }
-      const { id, pw } = state.signup;
-      const { data, error } = await supa.auth.signUp({ email: id, password: pw, options: { data: { nickname: v.nickname } } });
-      if (error) { toast(error.message); return; }
-      state.signup = null;
-      $('#authForm').reset();
-      if (data.session) {
-        await refreshLogin(data.session.user);
-        currentProfile.nickname = v.nickname; currentProfile.region = v.region; currentProfile.prefs = v.prefs;
-        await saveProfile();
-        syncAuthUI();
-        toast(v.nickname + '님, 가입을 환영해요.');
-      } else {
-        toast('가입 확인 이메일을 보냈어요. 인증 후 로그인해 주세요.');
-        go('auth', { reset: true });
-      }
-      return;
-    }
-    if (e.target.id === 'profileForm') {
-      e.preventDefault();
-      const a = me();
-      if (!a) return;
-      const v = readProfileForm(e.target);
-      const err = nickError(v.nickname);
-      if (err) { toast(err); e.target.nickname.focus(); return; }
-      a.nickname = v.nickname;
-      a.region = v.region;
-      a.prefs = v.prefs;
-      try { await saveProfile(); } catch (err) { console.error(err); toast('저장에 실패했어요.'); return; }
-      syncAuthUI();
-      toast('내 정보를 저장했어요.');
-      go('home', { reset: true });
-      return;
-    }
-    if (e.target.id === 'reviewForm') { e.preventDefault(); submitReview(); return; }
-    if (e.target.id === 'saveAsForm') {
-      e.preventDefault();
-      const c = state.course;
-      const raw = $('#saveAsTitle').value.trim();
-      const visEl = $('input[name="sa-vis"]:checked', e.target);
-      const title = c.id && (!raw || raw === String(c.title || '').trim()) ? copyTitle(c) : raw;
-      closeSheet();
-      saveCourse({ asNew: true, title: title, visibility: visEl ? visEl.value : 'private' });
-    }
-  });
-  let qTimer;
-  $('#listQuery').addEventListener('input', (e) => {
-    clearTimeout(qTimer);
-    qTimer = setTimeout(() => { state.query = e.target.value; state.visible = PAGE; renderList(); }, 180);
-  });
+  $('#listQuery').addEventListener('input', (e) => { state.query = e.target.value; state.visible = PAGE; renderList(); });
   $('#sortSelect').addEventListener('change', (e) => { state.sort = e.target.value; renderList(); });
-  document.addEventListener('change', (e) => {
-    if (e.target.name === 'rtag') syncReviewGroups();
-    if (e.target.id === 'courseSort') { state.psort = e.target.value === 'name' ? '' : e.target.value; refreshCourseList(); }
-    /* 지역 필터 시트: 시·도를 누르면 그 아래 시·군·구를 한 번에 선택/해제하고, 시·군·구를 하나라도 빼면 시·도 선택은 풀려요 */
-    if (e.target.dataset.role === 'parent') {
-      const p = e.target.dataset.prov, on = e.target.checked;
-      $$('input[name="' + e.target.name + '"][data-role="child"][data-prov="' + p + '"]', $('#sheetBody')).forEach((c) => { c.checked = on; });
-    }
-    if (e.target.dataset.role === 'child') {
-      const p = e.target.dataset.prov, root = $('#sheetBody');
-      const par = root.querySelector('input[name="' + e.target.name + '"][data-role="parent"][data-prov="' + p + '"]');
-      const kids = $$('input[name="' + e.target.name + '"][data-role="child"][data-prov="' + p + '"]', root);
-      if (par) par.checked = kids.length > 0 && kids.every((c) => c.checked);
-    }
-  });
+  $('#importFile').addEventListener('change', (e) => { importFile(e.target.files[0]); e.target.value = ''; });
   document.addEventListener('input', (e) => {
-    if (e.target.id === 'reviewComment') $('#rcount').textContent = e.target.value.length + '/80';
     if (e.target.id === 'courseTitle') state.course.title = e.target.value;
     if (e.target.id === 'courseQuery') { state.cf.q = e.target.value; refreshCourseList(); }
     if (e.target.id === 'reviewSearchQ') $('#reviewSearchList').innerHTML = reviewStoreListHTML(e.target.value);
+    if (e.target.id === 'reviewComment') {
+      const n = e.target.value.length;
+      $('#rcount').textContent = n + '/80';
+    }
   });
-  /* 방문 기록 메모는 입력 후 포커스가 빠져도 자동 저장 */
+  document.addEventListener('change', (e) => {
+    if (e.target.id === 'courseSort') { state.psort = e.target.value; refreshCourseList(); }
+    if (e.target.name === 'rtag') syncReviewGroups();
+    if (e.target.dataset.role === 'parent') {
+      $$('input[name="' + e.target.name + '"][data-role="child"][data-prov="' + e.target.dataset.prov + '"]', $('#sheetBody'))
+        .forEach((c) => { c.checked = e.target.checked; });
+    }
+    if (e.target.dataset.role === 'child') {
+      const p = $('input[name="' + e.target.name + '"][data-role="parent"][data-prov="' + e.target.dataset.prov + '"]', $('#sheetBody'));
+      const kids = $$('input[name="' + e.target.name + '"][data-role="child"][data-prov="' + e.target.dataset.prov + '"]', $('#sheetBody'));
+      if (p) p.checked = kids.length > 0 && kids.every((c) => c.checked);
+    }
+  });
+  document.addEventListener('submit', async (e) => {
+    if (e.target.id === 'reviewForm') { e.preventDefault(); submitReview(); }
+    if (e.target.id === 'saveAsForm') {
+      e.preventDefault();
+      const raw = $('#saveAsTitle').value.trim();
+      const visEl = $('#saveAsForm input[name="sa-vis"]:checked');
+      /* 저장한 코스의 이름을 고치지 않고 그대로 두면 원래 코스와 헷갈리니까 '기존 코스 이름 수정'으로 */
+      const title = state.course.id && (!raw || raw === state.course.title) ? copyTitle(state.course) : raw;
+      closeSheet();
+      saveCourse({ asNew: true, title: title, visibility: visEl ? visEl.value : state.course.visibility });
+    }
+    if (e.target.id === 'signupForm') {
+      e.preventDefault();
+      if (!state.signup) { go('auth'); return; }
+      const d = readProfileForm(e.target);
+      const err = nickError(d.nickname);
+      if (err) { toast(err); e.target.nickname.focus(); return; }
+      const { id, password } = state.signup;
+      const { data, error } = await supa.auth.signUp({ email: id, password, options: { data: { nickname: d.nickname, region: d.region } } });
+      if (error) { toast(error.message); return; }
+      state.signup = null; $('#authForm').reset();
+      if (data.session) {
+        await loadPrivate(data.user);
+        currentProfile = { nickname: d.nickname, region: d.region, prefs: d.prefs };
+        await saveProfile();
+        syncAuthUI(); applySettings(); go('home', { reset: true });
+        toast(d.nickname + '님, 환영해요.');
+      } else {
+        go('auth', { reset: true });
+        toast('인증 메일을 보냈어요. 메일 확인 후 로그인해 주세요.');
+      }
+    }
+    if (e.target.id === 'profileForm') {
+      e.preventDefault();
+      if (!currentUser || !currentProfile) { go('auth'); return; }
+      const d = readProfileForm(e.target);
+      const err = nickError(d.nickname);
+      if (err) { toast(err); e.target.nickname.focus(); return; }
+      currentProfile.nickname = d.nickname;
+      currentProfile.region = d.region;
+      currentProfile.prefs = d.prefs;
+      await saveProfile();
+      syncAuthUI();
+      toast('내 정보를 저장했어요.');
+      back();
+    }
+  });
   document.addEventListener('focusout', (e) => {
-    if (!e.target.classList || !e.target.classList.contains('memo')) return;
-    const card = e.target.closest('.card');
-    if (!card) return;
-    const v = db.get(KEY.visits, []);
-    const r = v.find((x) => x.id === card.dataset.id);
-    const val = e.target.value.trim();
-    if (r && r.memo !== val) { r.memo = val; db.set(KEY.visits, v); }
+    if (e.target.classList.contains('memo')) {
+      const id = e.target.closest('.card').dataset.id;
+      const v = db.get(KEY.visits, []);
+      const r = v.find((x) => x.id === id);
+      if (r && r.memo !== e.target.value.trim()) { r.memo = e.target.value.trim(); db.set(KEY.visits, v); toast('메모를 저장했어요.'); }
+    }
   });
-  $('#importFile').addEventListener('change', (e) => { importFile(e.target.files[0]); e.target.value = ''; });
   document.addEventListener('wheel', (e) => {
     const rail = e.target.closest('.home-pick-grid');
-    if (!rail || Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
-    const max = rail.scrollWidth - rail.clientWidth;
-    if (max <= 0) return;
-    e.preventDefault();
-    pauseHomeAutoSwipe(3000);
-    rail.scrollLeft = Math.max(0, Math.min(max, rail.scrollLeft + e.deltaY));
+    if (!rail || rail.scrollWidth <= rail.clientWidth) return;
+    if (Math.abs(e.deltaY) > Math.abs(e.deltaX) && e.deltaY !== 0) {
+      e.preventDefault();
+      rail.scrollBy({ left: e.deltaY, behavior: 'smooth' });
+      pauseHomeAutoSwipe(3000);
+    }
   }, { passive: false });
 
   /* ---------- 시작 ---------- */
-  (async function init() {
-    applySettings();
-    let initialUser = null;
-    try {
-      const { data: { session } } = await supa.auth.getSession();
-      initialUser = session?.user || null;
-      await loadPrivate(initialUser);
-    } catch (e) { console.error(e); }
-    syncAuthUI(); applySettings();
-    supa.auth.onAuthStateChange((event, session) => {
-      if (event === 'INITIAL_SESSION') return;
-      const next = session?.user || null;
-      if ((next?.id || null) === (currentUser?.id || null)) return;
-      refreshLogin(next).catch(console.error);
-    });
-    go('home', { reset: true });
-    load();
-    loadHomeNews();
+  applySettings();
+  (async function init(){
+    load(); loadHomeNews();
+    if(supa){
+      const {data:{session}}=await supa.auth.getSession();
+      await loadPrivate(session?.user||null);
+      supa.auth.onAuthStateChange((ev,s)=>{if(ev==='SIGNED_IN'||ev==='SIGNED_OUT')refreshLogin(s?.user||null);});
+    }
+    syncAuthUI();applySettings();go('home',{reset:true});
   })();
 })();
