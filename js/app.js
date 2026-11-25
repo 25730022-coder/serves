@@ -631,7 +631,8 @@ function renderScreen(name) {
   /* 후기 체크리스트 → 책방 키워드:
      분위기 · 공간·시설 · 책·큐레이션 각 분류에서 가장 많이 선택된 항목만 표시해요.
      최다 선택 수가 같은 항목은 최대 2개까지 보여주고, 2개를 초과하면 가나다순으로 2개를 골라요. */
-  function reviewKeywords(id) {
+ '<p class="para">아래에서 선택한 항목은 이후 책방 탐색 필터에 반영돼요.</p>' +
+   function reviewKeywords(id) {
     const counts = Object.fromEntries(tagCounts(id).tags);
     return REVIEW_GROUPS.flatMap((group) => {
       const ranked = group.options
