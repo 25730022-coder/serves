@@ -173,10 +173,12 @@ textarea.inputarea{width:100%;height:76px;border:1px solid var(--line-strong);bo
 .sheet-head{display:flex;justify-content:space-between;align-items:center;padding:0 4px 0 18px;border-bottom:1px solid var(--line)}
 .sheet-head strong{font-size:1.1rem}
 .sheet-body{padding:12px 16px 16px;overflow-y:auto}
-.sheet-body .opt{display:flex;align-items:center;gap:10px;padding:13px 4px;border-bottom:1px solid var(--subtle);cursor:pointer}
-.sheet-body .opt input{position:absolute;opacity:0;width:0;height:0;margin:0;pointer-events:none}
-.sheet-body .opt:has(input:checked){font-weight:700;color:var(--ink)}
-.sheet-body .opt.rg-sub{padding-left:20px}
+.sheet-body .opt{display:flex;align-items:center;gap:10px;padding:13px 4px;border-bottom:1px solid var(--subtle)}
+.sheet-body .opt input{width:20px;height:20px}
+.sheet-body .opt.rg-sub{padding-left:34px}
+.sheet-body .opt-btn{display:flex;justify-content:space-between;align-items:center;width:100%;border:0;border-bottom:1px solid var(--subtle);background:none;padding:14px 4px;text-align:left}
+.sheet-body .opt-btn small{color:var(--muted)}
+.sheet-foot{position:sticky;bottom:-16px;margin:8px -16px -16px;padding:8px 16px 14px;background:var(--paper);border-top:1px solid var(--line)}
 .sheet-foot .btn{margin:6px 0}
 
 /* 더보기 메뉴 */
